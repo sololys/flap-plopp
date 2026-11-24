@@ -53,11 +53,14 @@ impl MillenniumEngine {
         1000u32.saturating_sub(s_milli)
     }
 
-    /// Document 177 Omega threshold (tau <= 0.540) & Double-Pulse Identity psi_Rx(psi_Tx(x)) == x
-    pub fn omega_tau_and_pulse_ok(tau_milli: u32, pulse: u32) -> bool {
+    /// Exact rational threshold tau <= 27/50 (0 float) & Double-Pulse Involution T^2 = I
+    pub fn omega_tau_and_pulse_ok(tau_num: u64, tau_den: u64, pulse: u32) -> bool {
+        if tau_den == 0 {
+            return false;
+        }
         let tx = pulse ^ 0xA5A5_5A5A;
         let rx = tx ^ 0xA5A5_5A5A;
-        tau_milli <= 540 && rx == pulse
+        tau_num.saturating_mul(50) <= tau_den.saturating_mul(27) && rx == pulse
     }
 
     /// Constrained Decision Collapse (CDC): near boundary, admissible action count collapses to 1
@@ -161,8 +164,8 @@ fn main() {
     assert!(eng.load_c_milli < eng.limit_r_milli);
 
     // 4. Pushing C(t) >= R triggers immediate KILL & drops 4-indicator product to 0
-    assert!(MillenniumEngine::omega_tau_and_pulse_ok(540, 0x0177_0540));
-    assert!(!MillenniumEngine::omega_tau_and_pulse_ok(541, 0x0177_0540));
+    assert!(MillenniumEngine::omega_tau_and_pulse_ok(27, 50, 0x0177_0540));
+    assert!(!MillenniumEngine::omega_tau_and_pulse_ok(541, 1000, 0x0177_0540));
     assert_eq!(MillenniumEngine::cdc_admissible_actions(true, true), 1);
     assert_eq!(eng.indicator_product(true, true), 1);
     assert_eq!(eng.admit_monolith(7, 30_000, 0xAA99, false), Verdict::Kill);
