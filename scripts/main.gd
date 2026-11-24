@@ -371,8 +371,9 @@ func _draw_puffin() -> void:
 	var tilt := clampf(core.player_vy * 0.0011, -0.55, 0.65)
 	draw_set_transform(pos, tilt, Vector2(squash_x, squash_y))
 	if core.mode == FlapPloppCore.Mode.HOLD:
-		draw_circle(Vector2.ZERO, 34.0, Color(1.0, 0.92, 0.45, 0.24))
-		draw_arc(Vector2.ZERO, 34.0, 0.0, TAU, 32, Color(1.0, 0.90, 0.35, 0.9), 3.0)
+		var pulse_r := 34.0 + sin(core.elapsed * TAU * FlapPloppCore.IKS_PULSE_HZ) * 1.8
+		draw_circle(Vector2.ZERO, pulse_r, Color(1.0, 0.92, 0.45, 0.24))
+		draw_arc(Vector2.ZERO, pulse_r, 0.0, TAU, 32, Color(1.0, 0.90, 0.35, 0.9), 3.0)
 	draw_circle(Vector2.ZERO, 21.0, Color(0.14, 0.16, 0.22))
 	draw_circle(Vector2(3.0, 5.0), 14.5, Color(0.98, 0.97, 0.94))
 	draw_colored_polygon(PackedVector2Array([Vector2(16.0, -5.0), Vector2(33.0, 1.0), Vector2(16.0, 7.0)]), Color(1.0, 0.44, 0.16))

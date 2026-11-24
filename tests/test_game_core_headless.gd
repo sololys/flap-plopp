@@ -12,12 +12,13 @@ func _assert(cond: bool, msg: String) -> void:
 		quit(1)
 
 func _initialize() -> void:
-	# Law 1: Exact involution T(T(s)) == s for all states
-	_assert(FlapPloppCore.apply_involution_T(FlapPloppCore.apply_involution_T(FlapPloppCore.Medium.SKY)) == FlapPloppCore.Medium.SKY, "1. T(T(SKY)) == SKY")
-	_assert(FlapPloppCore.apply_involution_T(FlapPloppCore.apply_involution_T(FlapPloppCore.Medium.SEA)) == FlapPloppCore.Medium.SEA, "2. T(T(SEA)) == SEA")
+	# Law 1: Exact IKS involution F(s) = 1 - s => F(F(s)) == s (zero residual)
+	_assert(FlapPloppCore.apply_involution_T(FlapPloppCore.apply_involution_T(FlapPloppCore.Medium.SKY)) == FlapPloppCore.Medium.SKY, "1. F(F(SKY)) == SKY")
+	_assert(FlapPloppCore.apply_involution_T(FlapPloppCore.apply_involution_T(FlapPloppCore.Medium.SEA)) == FlapPloppCore.Medium.SEA, "2. F(F(SEA)) == SEA")
 
 	var core = FlapPloppCore.new(1337)
 	_assert(core.mode == FlapPloppCore.Mode.TITLE, "3. Starts in TITLE")
+	_assert(core.indicator_product(true) == 1 and core.indicator_product(false) == 0, "3b. Four-indicator product fail-closed")
 
 	# Story dialogue & banner
 	core.start_story()

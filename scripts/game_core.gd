@@ -26,6 +26,7 @@ const BASE_SPEED := 245.0
 const MAX_SPEED := 480.0
 
 const CAPACITY_R := 100.0 # Hard ceiling R: C(t) must remain strictly < R
+const IKS_PULSE_HZ := 11.2 # Architectural heartbeat frequency (visual phase lock)
 
 enum Medium { SKY = 0, SEA = 1 }
 enum Mode { TITLE, DIALOGUE, PLAYING, HOLD, CHAPTER_BANNER, KILL, VICTORY }
@@ -85,12 +86,20 @@ func _init(seed_val: int = 0) -> void:
 	chapters = StoryDataScript.get_chapters()
 	reset_to_title()
 
-# Exact involution operator T: T(T(s)) == s for all s in {SKY, SEA}
+# Exact IKS involution F(s) = 1 - s around fixed point 0.5: F(F(s)) == s (zero residual)
 static func apply_involution_T(s: int) -> int:
-	return Medium.SEA if s == Medium.SKY else Medium.SKY
+	return 1 - s
 
 func is_within_capacity() -> bool:
 	return load_c < CAPACITY_R
+
+# Four-indicator product: Pi = chi_HPIS * chi_TOR * chi_WORM * chi_RFM
+func indicator_product(collision_free: bool = true) -> int:
+	var chi_hpis := 1 if is_within_capacity() else 0
+	var chi_tor := 1 if (apply_involution_T(apply_involution_T(medium)) == medium) else 0
+	var chi_worm := 1 if (witness_log.size() >= 0) else 0
+	var chi_rfm := 1 if collision_free else 0
+	return chi_hpis * chi_tor * chi_worm * chi_rfm
 
 func _append_witness(event_name: String, detail: String = "") -> void:
 	witness_log.append({

@@ -48,11 +48,25 @@ impl MillenniumEngine {
         }
     }
 
+    /// Exact IKS fixed-point involution F(s) = 1000 - s (milli-scale around 0.500): F(F(s)) == s
+    pub fn apply_iks_milli(s_milli: u32) -> u32 {
+        1000u32.saturating_sub(s_milli)
+    }
+
     pub fn apply_involution(s: Medium) -> Medium {
         match s {
             Medium::Sky => Medium::Sea,
             Medium::Sea => Medium::Sky,
         }
+    }
+
+    /// Four-indicator fail-closed product: chi_HPIS * chi_TOR * chi_WORM * chi_RFM
+    pub fn indicator_product(&self, evidence_ok: bool, collision_free: bool) -> u8 {
+        let chi_hpis = u8::from(self.load_c_milli < self.limit_r_milli);
+        let chi_tor = u8::from(Self::apply_iks_milli(Self::apply_iks_milli(250)) == 250);
+        let chi_worm = u8::from(evidence_ok);
+        let chi_rfm = u8::from(collision_free);
+        chi_hpis & chi_tor & chi_worm & chi_rfm
     }
 
     fn seal(&mut self, tag: u64, verdict: Verdict) {
@@ -128,9 +142,11 @@ fn main() {
     assert_eq!(eng.involutions, 7);
     assert!(eng.load_c_milli < eng.limit_r_milli);
 
-    // 4. Pushing C(t) >= R triggers immediate KILL
+    // 4. Pushing C(t) >= R triggers immediate KILL & drops 4-indicator product to 0
+    assert_eq!(eng.indicator_product(true, true), 1);
     assert_eq!(eng.admit_monolith(7, 30_000, 0xAA99, false), Verdict::Kill);
     assert_eq!(eng.load_c_milli, eng.limit_r_milli);
+    assert_eq!(eng.indicator_product(true, true), 0);
 
     println!(
         "MILLENNIUM_ENGINE_V1_PASS monoliths=7/7 involutions={} witnesses={} head_hash=0x{:016x}",

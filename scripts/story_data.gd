@@ -86,7 +86,7 @@ static func get_sequence(seq_id: String) -> Array[Dictionary]:
 					"speaker": "Captain Klabb",
 					"portrait": "klabb",
 					"pitch": 0.74,
-					"text": "Spot on! Keep your spark load C(t) < R, press H for a safe HOLD bubble anytime, and if C(t) hits R, KILL cuts power to 0.00 V!",
+					"text": "Remember the two-layer rule: HOLD (H) is the calm waiting room to cool C(t) < R. You can't glide past a cliff — when any indicator fails, KILL cuts power to 0.00 V!",
 				},
 			]
 		"ch2_intro":

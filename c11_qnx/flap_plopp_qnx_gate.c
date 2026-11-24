@@ -48,8 +48,18 @@ typedef struct {
     fp_witness_t log[32];
 } fp_qnx_gate_t;
 
+/* Exact IKS involution F(s) = 1 - s around fixed point 0.5: F(F(s)) == s */
 static inline uint8_t fp_apply_T(uint8_t s) {
-    return (s == FP_MED_SKY) ? FP_MED_SEA : FP_MED_SKY;
+    return (uint8_t)(1u - (s & 1u));
+}
+
+/* Four-indicator product: chi_HPIS * chi_TOR * chi_WORM * chi_RFM */
+static inline uint8_t fp_indicator_product(const fp_qnx_gate_t *g, bool chain_ok, bool collision_free) {
+    uint8_t chi_hpis = (g->load_c_milli < FP_CAPACITY_R_MILLI) ? 1u : 0u;
+    uint8_t chi_tor  = (fp_apply_T(fp_apply_T(g->medium)) == g->medium) ? 1u : 0u;
+    uint8_t chi_worm = chain_ok ? 1u : 0u;
+    uint8_t chi_rfm  = collision_free ? 1u : 0u;
+    return (uint8_t)(chi_hpis & chi_tor & chi_worm & chi_rfm);
 }
 
 static uint64_t fp_fnv1a(uint64_t prev_hash, uint64_t seq, uint64_t mono_ns, uint32_t load_c, uint8_t st) {
@@ -189,9 +199,11 @@ int main(void) {
     assert(fp_shift(&g, 5000050000ULL) && g.medium == FP_MED_SKY);
     assert(g.involutions_completed == 1u);
 
-    /* 5. C(t) >= R triggers immediate 0.00 V KILL */
+    /* 5. C(t) >= R triggers immediate 0.00 V KILL and drops indicator product to 0 */
+    assert(fp_indicator_product(&g, fp_verify_chain(&g), true) == 1u);
     fp_step_monotonic(&g, 5000062500ULL, 100000u);
     assert(g.state == FP_STATE_KILL);
+    assert(fp_indicator_product(&g, fp_verify_chain(&g), true) == 0u);
     assert(g.log[g.log_len - 1u].v_out_allow == 0u);
     assert(fp_verify_chain(&g));
 

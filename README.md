@@ -4,10 +4,10 @@ A cute, energetic 2D arcade adventure built with **Godot 4.3** for **GitHub Game
 
 ## The Four Laws of the Fjord
 
-* **$T(T(s)) = s$ & Poincaré Return:** Press `SHIFT` to flip between **Sky** (`FLAP`) and **Sea** (`PLOPP`). Flip twice and you are always home — returning within the $\epsilon$-neighborhood of your departure altitude triggers a **Poincaré Return** bonus with extra cooling and a witness log entry.
-* **$C(t) < R$ (Capacity Bound):** Every moment and flap builds spark load $C(t)$ toward ceiling $R = 100$. Collect stars/pearls and chain clean `SHIFT` flips to stay strictly below $R$.
-* **`HOLD` (Safe Stasis):** Press `H` anytime to enter a golden `HOLD` bubble (`0.00 V`). Motion pauses, $C(t)$ cools gently, and time alone never opens `HOLD` until you explicitly press `SPACE` or `H`.
-* **`KILL` (0.00 V Cutoff):** Hitting $C(t) \ge R$ or bonking an obstacle triggers an instant `KILL` cutoff, appends the event to the journey witness log (never erased on retry), and lets you retry the current chapter cleanly.
+* **$T(T(s)) = s$ (IKS Involution $F(s) = 1 - s$) & Poincaré Return:** Press `SHIFT` to flip between **Sky** (`FLAP`) and **Sea** (`PLOPP`). Flip twice and you return with zero residual (`F(F(s)) == s`); landing within the $\epsilon$-neighborhood of your departure altitude triggers a **Poincaré Return** bonus.
+* **$C(t) < R$ & Four-Indicator Gate ($\prod_{i=1}^4 \chi_i = 1$):** Every moment and flap builds spark load $C(t)$ toward ceiling $R = 100$. All four indicators (`HPIS`, `TOR`, `WORM`, `RFM`) must hold simultaneously (`INSPIRED_BY != IMPLEMENTS != PROVES`).
+* **`HOLD` (Analytical Waiting Room, 11.2 Hz Pulse):** Press `H` anytime to enter a golden `HOLD` bubble (`0.00 V`). Motion pauses, $C(t)$ cools gently, and time alone never opens `HOLD` until you explicitly press `SPACE` or `H`.
+* **`KILL` (Discrete 0.00 V Cutoff):** Because no smooth holomorphic function separates admissible from forbidden domains, hitting $C(t) \ge R$ or bonking an obstacle triggers an instant `KILL` cutoff, appends the event to the witness log (never erased on retry), and lets you retry the current chapter cleanly.
 
 ## Controls
 
