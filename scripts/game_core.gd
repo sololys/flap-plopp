@@ -53,11 +53,12 @@ var distance: float = 0.0
 
 # Core four-law state
 var load_c: float = 12.0            # C(t) in [0, R]; C(t) >= R triggers KILL
-var kill_reason: String = ""        # "OVERLOAD_C_GE_R" or "COLLISION_BONK"
+var kill_reason: String = ""        # "OVERLOAD_C_GE_R", "COLLISION_BONK", or "COMMUTATOR_VIOLATION"
 var shift_parity: int = 0           # Counts half-flips; every 2nd flip completes T(T(s)) = s
 var involutions_completed: int = 0
 var poincare_origin_y: float = -1.0 # Recorded y0 when leaving SKY/SEA on first half-flip
 var poincare_returns: int = 0       # Completed T(T(s))=s returning within epsilon of y0
+var pi_k_projected: bool = false    # Enforces [R, Pi_K] != 0: Pi_K must precede realization R
 var hold_entries: int = 0
 var kill_count: int = 0
 var witness_log: Array[Dictionary] = [] # Append-only log (never erased on retry)
@@ -100,6 +101,19 @@ func indicator_product(collision_free: bool = true) -> int:
 	var chi_worm := 1 if (witness_log.size() >= 0) else 0
 	var chi_rfm := 1 if collision_free else 0
 	return chi_hpis * chi_tor * chi_worm * chi_rfm
+
+# Enforces [R, Pi_K] != 0: calling realization R without prior Pi_K projection triggers KILL
+func project_pi_k() -> bool:
+	pi_k_projected = (indicator_product(true) == 1)
+	return pi_k_projected
+
+func realize_if_projected(delta_y: float) -> bool:
+	if not pi_k_projected:
+		_trigger_kill("COMMUTATOR_VIOLATION")
+		return false
+	pi_k_projected = false
+	player_y += delta_y
+	return true
 
 func _append_witness(event_name: String, detail: String = "") -> void:
 	witness_log.append({
@@ -410,7 +424,10 @@ func step(dt: float) -> void:
 	else:
 		player_vy += AIR_GRAVITY * dt
 		player_vy = clampf(player_vy, -520.0, 560.0)
-	player_y += player_vy * dt
+	if not project_pi_k():
+		_trigger_kill("OVERLOAD_C_GE_R")
+		return
+	realize_if_projected(player_vy * dt)
 
 	if not in_water:
 		if player_y < 28.0:

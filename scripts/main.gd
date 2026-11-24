@@ -246,7 +246,9 @@ func _draw() -> void:
 	draw_set_transform(shake, 0.0, Vector2.ONE)
 
 	_draw_sky_and_sea()
+	_draw_ambient_life()
 	_draw_lighthouse_if_finale()
+	_draw_poincare_target()
 	_draw_obstacles()
 	_draw_collectibles()
 	_draw_puffin()
@@ -299,6 +301,34 @@ func _draw_sky_and_sea() -> void:
 			Vector2(bx + 25.0, 640.0),
 		])
 		draw_colored_polygon(poly, Color(0.55, 0.92, 0.98, 0.10))
+
+func _draw_ambient_life() -> void:
+	# Distant gliding gulls in the sky
+	for i in range(3):
+		var gx := fmod(float(i) * 340.0 - core.distance * 0.22 + 1400.0, 1140.0) - 90.0
+		var gy := 115.0 + float(i) * 34.0 + sin(core.elapsed * 3.0 + float(i)) * 6.0
+		var flap := sin(core.elapsed * 7.5 + float(i) * 2.0) * 5.0
+		var gc := Color(0.98, 0.99, 1.0, 0.72)
+		draw_line(Vector2(gx - 9.0, gy - flap), Vector2(gx, gy), gc, 2.0)
+		draw_line(Vector2(gx, gy), Vector2(gx + 9.0, gy - flap), gc, 2.0)
+
+	# Friendly tiny fish silhouettes swimming deep underwater
+	for i in range(5):
+		var fx := fmod(float(i) * 210.0 - core.distance * 0.35 + 1600.0, 1120.0) - 60.0
+		var fy := FlapPloppCore.WATER_Y + 95.0 + float(i % 3) * 65.0 + sin(core.elapsed * 2.6 + float(i)) * 8.0
+		var fc := Color(0.62, 0.94, 0.96, 0.28)
+		draw_circle(Vector2(fx, fy), 6.0, fc)
+		draw_colored_polygon(PackedVector2Array([Vector2(fx + 5.0, fy), Vector2(fx + 13.0, fy - 5.0), Vector2(fx + 13.0, fy + 5.0)]), fc)
+
+func _draw_poincare_target() -> void:
+	# Shows the golden Poincare Return epsilon-zone whenever Pip is halfway through T(T(s))=s
+	if core.mode != FlapPloppCore.Mode.PLAYING or core.poincare_origin_y < 0.0:
+		return
+	var cy: float = core.poincare_origin_y
+	var eps: float = FlapPloppCore.POINCARE_EPSILON_PX
+	var pulse := 0.22 + 0.12 * sin(core.elapsed * 6.0)
+	draw_rect(Rect2(FlapPloppCore.PLAYER_X - 30.0, cy - eps, 60.0, eps * 2.0), Color(1.0, 0.90, 0.34, pulse * 0.45))
+	draw_arc(Vector2(FlapPloppCore.PLAYER_X, cy), 26.0, 0.0, TAU, 28, Color(1.0, 0.90, 0.36, 0.75), 2.5)
 
 func _draw_lighthouse_if_finale() -> void:
 	if core.chapter_index < 3 and core.mode != FlapPloppCore.Mode.VICTORY:

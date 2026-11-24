@@ -1,0 +1,17 @@
+name: Verify Flap & Plopp Tri-Stack
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  verify-rust-and-c11:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify Rust KY Engine v1 & Millennium Engine v1 (-D warnings)
+        run: make verify-rust
+      - name: Verify C11 / QNX Zero-Float Gate (objdump 0 float)
+        run: make verify-qnx-c11

@@ -67,8 +67,14 @@ func _initialize() -> void:
 	core.skip_dialogue()
 	_assert(core.mode == FlapPloppCore.Mode.VICTORY, "Finale reaches VICTORY")
 
+	# Law 5: Commutator prohibition [R, Pi_K] != 0 — calling R without prior Pi_K triggers KILL
+	core.start_run(true)
+	core.pi_k_projected = false
+	_assert(not core.realize_if_projected(5.0), "17. Realization R without Pi_K is blocked")
+	_assert(core.mode == FlapPloppCore.Mode.KILL and core.kill_reason == "COMMUTATOR_VIOLATION", "18. Commutator breach triggers immediate 0.00 V KILL")
+
 	# All 7 procedural WAVs
 	_assert(SoundSynth.make_flap().data.size() > 0 and SoundSynth.make_fanfare().data.size() > 0, "Procedural WAVs ok")
 
-	print("FLAP_PLOPP_FOUR_LAWS_PASS tests=16/16 involutions=%d witness_entries=%d" % [core.involutions_completed, core.witness_log.size()])
+	print("FLAP_PLOPP_FOUR_LAWS_PASS tests=18/18 involutions=%d poincare=%d witness_entries=%d" % [core.involutions_completed, core.poincare_returns, core.witness_log.size()])
 	quit(0)
