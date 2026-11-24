@@ -27,12 +27,15 @@ func _initialize() -> void:
 	core.action_flap_or_dive()
 	_assert(core.mode == FlapPloppCore.Mode.PLAYING, "6. Banner -> PLAYING")
 
-	# Law 1 in play: two SHIFTs complete one involution T(T(s)) = s and return to SKY
+	# Law 1 in play: two SHIFTs complete one involution T(T(s)) = s and a Poincare Return
 	var m0: int = core.medium
+	core.player_y = 310.0
 	_assert(core.action_shift() and core.medium != m0, "7. First SHIFT flips SKY -> SEA")
 	core.shift_cooldown = 0.0
+	core.player_y = 330.0 # Within POINCARE_EPSILON_PX (36 px) of origin y0 = 310.0
 	_assert(core.action_shift() and core.medium == m0, "8. Second SHIFT completes T(T(s)) = s -> SKY")
 	_assert(core.involutions_completed == 1, "9. Involution counter incremented")
+	_assert(core.poincare_returns == 1, "9b. Poincare Return triggered within epsilon neighborhood")
 
 	# Law 3: HOLD preserves state and NEVER exits merely because time passes
 	core.load_c = 60.0

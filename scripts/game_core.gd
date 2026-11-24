@@ -55,9 +55,13 @@ var load_c: float = 12.0            # C(t) in [0, R]; C(t) >= R triggers KILL
 var kill_reason: String = ""        # "OVERLOAD_C_GE_R" or "COLLISION_BONK"
 var shift_parity: int = 0           # Counts half-flips; every 2nd flip completes T(T(s)) = s
 var involutions_completed: int = 0
+var poincare_origin_y: float = -1.0 # Recorded y0 when leaving SKY/SEA on first half-flip
+var poincare_returns: int = 0       # Completed T(T(s))=s returning within epsilon of y0
 var hold_entries: int = 0
 var kill_count: int = 0
 var witness_log: Array[Dictionary] = [] # Append-only log (never erased on retry)
+
+const POINCARE_EPSILON_PX := 36.0
 
 var score: int = 0
 var best_score: int = 0
@@ -134,6 +138,7 @@ func _reset_actor() -> void:
 	load_c = 12.0
 	kill_reason = ""
 	shift_parity = 0
+	poincare_origin_y = -1.0
 	scroll_speed = BASE_SPEED + float(current_chapter()["speed_bonus"])
 	spawn_timer = 0.95
 	obstacles.clear()
@@ -279,16 +284,18 @@ func action_flap_or_dive() -> void:
 		events.append({"type": "flap", "x": PLAYER_X, "y": player_y})
 
 # SHIFT: applies exact involution T(s); every 2nd shift completes T(T(s)) = s!
+# If the return altitude lands within POINCARE_EPSILON_PX of y0, awards a Poincare Return!
 func action_shift() -> bool:
 	if mode != Mode.PLAYING or shift_cooldown > 0.0:
 		return false
+	var y_before_shift := player_y
 	medium = apply_involution_T(medium)
 	in_water = (medium == Medium.SEA)
 	shifts_used += 1
 	shift_parity += 1
 	shift_cooldown = 0.14
 
-	var near_surface := absf(player_y - WATER_Y) < 75.0
+	var near_surface := absf(y_before_shift - WATER_Y) < 75.0
 	if in_water:
 		if player_y < WATER_Y + 18.0:
 			player_y = WATER_Y + 18.0
@@ -300,9 +307,11 @@ func action_shift() -> bool:
 		player_vy = SHIFT_LAUNCH_VEL
 		events.append({"type": "splash", "x": PLAYER_X, "y": WATER_Y, "near_surface": near_surface})
 
-	# Clean SHIFT cools C(t); completing a full T(T(s)) = s loop gives extra cooling + bonus!
+	# Clean SHIFT cools C(t); completing a full T(T(s)) = s loop checks Poincare Return!
 	load_c = maxf(0.0, load_c - (12.0 if near_surface else 6.0))
-	if shift_parity % 2 == 0:
+	if shift_parity % 2 == 1:
+		poincare_origin_y = y_before_shift
+	else:
 		involutions_completed += 1
 		load_c = maxf(0.0, load_c - 10.0)
 		var inv_pts := 10 * combo
@@ -313,6 +322,19 @@ func action_shift() -> bool:
 			"y": WATER_Y - 38.0,
 			"points": inv_pts,
 		})
+		if poincare_origin_y >= 0.0 and absf(y_before_shift - poincare_origin_y) <= POINCARE_EPSILON_PX:
+			poincare_returns += 1
+			load_c = maxf(0.0, load_c - 15.0)
+			var p_pts := 30 * combo
+			score += p_pts
+			_append_witness("POINCARE_RETURN", "dy=%d" % int(round(absf(y_before_shift - poincare_origin_y))))
+			events.append({
+				"type": "poincare",
+				"x": PLAYER_X + 24.0,
+				"y": poincare_origin_y,
+				"points": p_pts,
+			})
+		poincare_origin_y = -1.0
 
 	if near_surface:
 		combo = mini(combo + 1, 8)

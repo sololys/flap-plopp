@@ -158,6 +158,17 @@ func _handle_events() -> void:
 					"life": 0.95,
 					"color": Color(0.45, 1.0, 0.76),
 				})
+			"poincare":
+				sfx_pickup.pitch_scale = 1.32
+				sfx_pickup.play()
+				_spawn_burst(ex, ey, 16, Color(1.0, 0.90, 0.36), 210.0)
+				popups.append({
+					"text": "POINCARE RETURN! +%d" % int(ev["points"]),
+					"x": ex,
+					"y": ey - 28.0,
+					"life": 1.15,
+					"color": Color(1.0, 0.92, 0.38),
+				})
 			"combo":
 				popups.append({
 					"text": "SHIFT x%d +%d" % [int(ev["combo"]), int(ev["points"])],
@@ -452,7 +463,7 @@ func _draw_hud() -> void:
 	var ch: Dictionary = core.current_chapter()
 	draw_rect(Rect2(16, 12, 928, 52), Color(0.06, 0.13, 0.22, 0.68))
 	draw_string(font, Vector2(28, 36), "SCORE: %d" % core.score, HORIZONTAL_ALIGNMENT_LEFT, -1, 19, Color(1.0, 0.96, 0.85))
-	draw_string(font, Vector2(28, 56), "T(T(s))=s: %d" % core.involutions_completed, HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color(0.54, 0.98, 0.82))
+	draw_string(font, Vector2(28, 56), "T(T(s))=s: %d  |  POINCARE: %d" % [core.involutions_completed, core.poincare_returns], HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Color(0.54, 0.98, 0.82))
 
 	if core.combo > 1:
 		draw_string(font, Vector2(170, 36), "x%d!" % core.combo, HORIZONTAL_ALIGNMENT_LEFT, -1, 20, Color(1.0, 0.86, 0.20))
