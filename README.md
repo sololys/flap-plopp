@@ -18,13 +18,17 @@ A cute, energetic 2D arcade adventure built with **Godot 4.3** for **GitHub Game
 | **`HOLD`** (enter / release safe bubble) | `H` | — |
 | **Skip Dialogue** / **Restart Story** | `Esc` / `R` | — |
 
+## Architecture & KY Engine v1 ($\kappa_{27}$) Reference
+
+Alongside the playable Godot 4.3 game, [rust/ky_engine_v1.rs](rust/ky_engine_v1.rs) provides a zero-dependency, zero-float Rust reference implementation of **KY Engine v1 ($\kappa_{27}$)** enforcing $x_{t+1} = \Omega(\Pi_K(\Phi(x_t)))$ with the strict lifecycle `○ (RAW) -> ◇ (ESTIMATE) -> □ (STRUCT) -> ⬡ (VIABILITY) -> ◉ (COMMITTED)` and chained witness log verification for both `RealityForgeRules` and `FlapPloppRules`.
+
 ## Run & Verify
 
 ```bash
 # Play locally in Godot 4.3
 make play
 
-# Run headless verification suite (16/16 tests: T(T(s))=s, C(t)<R, HOLD, KILL)
+# Run full verification suite (Godot 4.3 16/16 + Rust KY Engine v1 -D warnings)
 make verify
 ```
 
