@@ -1,24 +1,22 @@
 # Flap & Plopp: The Fjord Shift
 
-A cute, energetic 2D arcade adventure built with **Godot 4.3** for **GitHub Game Off (Theme: SHIFT)**.
+A cute, energetic 2D arcade adventure built with **Godot 4.3** for **GitHub Game Off (Theme: SHIFT)** — where a little puffin named **Pip** carries a golden spark across four fjord chapters to relight the Northern Lighthouse.
 
-Join **Pip the Puffin**, **Captain Klabb**, **Lumina the Jellyfish**, and **Keeper Sol** on a four-chapter journey across the fjord to relight the Northern Lighthouse! **FLAP** through the sky, press **SHIFT** to **PLOPP** straight underwater where buoyancy flips gravity upside down, chain near-surface combos, and unlock **Endless Aurora** mode after the finale.
+## The Four Laws of the Fjord
 
-## Chapters & Sequences
-
-1. **Ch 1: Morning Pier** — Bright summer sky, Captain Klabb's tutorial dialogue, harbor buoys & pearls.
-2. **Ch 2: Jellyfish Cove** — Golden afternoon glow, meet Lumina underwater, faster `SHIFT` chains.
-3. **Ch 3: Twilight Reef** — Rose sunset & glowing tide as the fjord current picks up speed.
-4. **Ch 4: Northern Lighthouse** — Starlight, dancing aurora ribbons, finale sequence & **Endless Aurora** mode.
+* **$T(T(s)) = s$ (Involution):** Press `SHIFT` to flip between **Sky** (`FLAP`) and **Sea** (`PLOPP`). Flip twice and you are always home — completing a clean `T(T(s)) = s` loop cools your spark and awards bonus points.
+* **$C(t) < R$ (Capacity Bound):** Every moment and flap builds spark load $C(t)$ toward ceiling $R = 100$. Collect stars/pearls and chain clean `SHIFT` flips to stay strictly below $R$.
+* **`HOLD` (Safe Stasis):** Press `H` anytime to enter a golden `HOLD` bubble (`0.00 V`). Motion pauses, $C(t)$ cools gently, and time alone never opens `HOLD` until you explicitly press `SPACE` or `H`.
+* **`KILL` (0.00 V Cutoff):** Hitting $C(t) \ge R$ or bonking an obstacle triggers an instant `KILL` cutoff, appends the event to the journey witness log (never erased on retry), and lets you retry the current chapter cleanly.
 
 ## Controls
 
 | Action | Keyboard | Mouse |
 | --- | --- | --- |
-| **Flap up** (sky) / **Dive down** (water) / **Next dialogue** | `Space` / `W` / `Up` / `Enter` | Left Click |
-| **SHIFT** (`PLOPP!` into water / `SPLASH!` to sky) | `Shift` / `S` / `Down` | Right Click |
-| **Skip Dialogue** | `Esc` | — |
-| **Restart Story** | `R` | — |
+| **Flap up** (Sky) / **Dive down** (Sea) / **Next dialogue** | `Space` / `W` / `Up` / `Enter` | Left Click |
+| **SHIFT** ($T(s)$: `PLOPP!` / `SPLASH!`) | `Shift` / `S` / `Down` | Right Click |
+| **`HOLD`** (enter / release safe bubble) | `H` | — |
+| **Skip Dialogue** / **Restart Story** | `Esc` / `R` | — |
 
 ## Run & Verify
 
@@ -26,7 +24,7 @@ Join **Pip the Puffin**, **Captain Klabb**, **Lumina the Jellyfish**, and **Keep
 # Play locally in Godot 4.3
 make play
 
-# Run headless verification suite (12/12 story, physics & audio tests)
+# Run headless verification suite (16/16 tests: T(T(s))=s, C(t)<R, HOLD, KILL)
 make verify
 ```
 

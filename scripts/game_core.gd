@@ -1,7 +1,11 @@
 class_name FlapPloppCore
 extends RefCounted
 
-# Flap & Plopp: The Fjord Shift — Core arcade & chapter/dialogue state machine
+# Flap & Plopp: The Fjord Shift — Core simulation built around:
+#   1. T(T(s)) = s  (Involution: Sky <-> Sea via SHIFT)
+#   2. C(t) < R     (Spark load C(t) must stay strictly below ceiling R = 100)
+#   3. HOLD         (Reversible safe stasis; time alone never exits HOLD)
+#   4. KILL         (Instant 0.00 V cutoff on C(t) >= R or collision, logged append-only)
 
 const StoryDataScript = preload("res://scripts/story_data.gd")
 
@@ -21,7 +25,10 @@ const SHIFT_LAUNCH_VEL := -460.0
 const BASE_SPEED := 245.0
 const MAX_SPEED := 480.0
 
-enum Mode { TITLE, DIALOGUE, PLAYING, CHAPTER_BANNER, GAME_OVER, VICTORY }
+const CAPACITY_R := 100.0 # Hard ceiling R: C(t) must remain strictly < R
+
+enum Medium { SKY = 0, SEA = 1 }
+enum Mode { TITLE, DIALOGUE, PLAYING, HOLD, CHAPTER_BANNER, KILL, VICTORY }
 
 var mode: int = Mode.TITLE
 var chapters: Array[Dictionary] = []
@@ -37,10 +44,20 @@ var banner_timer: float = 0.0
 
 var player_y: float = 200.0
 var player_vy: float = 0.0
+var medium: int = Medium.SKY
 var in_water: bool = false
 var shift_cooldown: float = 0.0
 var scroll_speed: float = BASE_SPEED
 var distance: float = 0.0
+
+# Core four-law state
+var load_c: float = 12.0            # C(t) in [0, R]; C(t) >= R triggers KILL
+var kill_reason: String = ""        # "OVERLOAD_C_GE_R" or "COLLISION_BONK"
+var shift_parity: int = 0           # Counts half-flips; every 2nd flip completes T(T(s)) = s
+var involutions_completed: int = 0
+var hold_entries: int = 0
+var kill_count: int = 0
+var witness_log: Array[Dictionary] = [] # Append-only log (never erased on retry)
 
 var score: int = 0
 var best_score: int = 0
@@ -63,6 +80,25 @@ func _init(seed_val: int = 0) -> void:
 		_rng.randomize()
 	chapters = StoryDataScript.get_chapters()
 	reset_to_title()
+
+# Exact involution operator T: T(T(s)) == s for all s in {SKY, SEA}
+static func apply_involution_T(s: int) -> int:
+	return Medium.SEA if s == Medium.SKY else Medium.SKY
+
+func is_within_capacity() -> bool:
+	return load_c < CAPACITY_R
+
+func _append_witness(event_name: String, detail: String = "") -> void:
+	witness_log.append({
+		"seq": witness_log.size(),
+		"chapter": chapter_index + 1,
+		"event": event_name,
+		"medium": "SEA" if medium == Medium.SEA else "SKY",
+		"load_c": int(round(load_c)),
+		"limit_r": int(CAPACITY_R),
+		"score": score,
+		"detail": detail,
+	})
 
 func current_chapter() -> Dictionary:
 	return chapters[clampi(chapter_index, 0, chapters.size() - 1)]
@@ -92,8 +128,12 @@ func reset_to_title() -> void:
 func _reset_actor() -> void:
 	player_y = 200.0
 	player_vy = 0.0
+	medium = Medium.SKY
 	in_water = false
 	shift_cooldown = 0.0
+	load_c = 12.0
+	kill_reason = ""
+	shift_parity = 0
 	scroll_speed = BASE_SPEED + float(current_chapter()["speed_bonus"])
 	spawn_timer = 0.95
 	obstacles.clear()
@@ -108,6 +148,7 @@ func start_story() -> void:
 	combo_timer = 0.0
 	shifts_used = 0
 	_reset_actor()
+	_append_witness("STORY_START", "ch1")
 	_begin_dialogue("intro", Mode.CHAPTER_BANNER)
 
 func start_run(keep_chapter: bool = false) -> void:
@@ -124,6 +165,7 @@ func start_run(keep_chapter: bool = false) -> void:
 	_reset_actor()
 	mode = Mode.PLAYING
 	player_vy = AIR_FLAP_VEL * 0.65
+	_append_witness("OPEN_RUN", "retry_ch" if keep_chapter else "fresh")
 	events.append({"type": "flap", "x": PLAYER_X, "y": player_y})
 
 func start_endless() -> void:
@@ -133,7 +175,27 @@ func start_endless() -> void:
 	_reset_actor()
 	mode = Mode.PLAYING
 	player_vy = AIR_FLAP_VEL * 0.65
+	_append_witness("OPEN_ENDLESS", "aurora")
 	events.append({"type": "flap", "x": PLAYER_X, "y": player_y})
+
+# HOLD: enters reversible stasis (u = 0). Time alone never exits HOLD.
+func action_hold() -> bool:
+	if mode != Mode.PLAYING:
+		return false
+	mode = Mode.HOLD
+	hold_entries += 1
+	_append_witness("HOLD_ENTER", "reversible_stasis")
+	events.append({"type": "hold_enter", "x": PLAYER_X, "y": player_y})
+	return true
+
+# Explicit release from HOLD -> PLAYING (requires player input + C(t) < R)
+func release_hold() -> bool:
+	if mode != Mode.HOLD or not is_within_capacity():
+		return false
+	mode = Mode.PLAYING
+	_append_witness("HOLD_RELEASE_OPEN", "explicit_input")
+	events.append({"type": "flap", "x": PLAYER_X, "y": player_y})
+	return true
 
 func _begin_dialogue(seq_id: String, after_mode: int) -> void:
 	dialogue_queue = StoryDataScript.get_sequence(seq_id)
@@ -162,6 +224,7 @@ func advance_dialogue() -> void:
 			mode = Mode.VICTORY
 			if score > best_score:
 				best_score = score
+			_append_witness("VICTORY_BEACON_LIT", "all_4_chapters")
 			events.append({"type": "victory", "score": score})
 		else:
 			mode = Mode.PLAYING
@@ -186,18 +249,28 @@ func action_flap_or_dive() -> void:
 	if mode == Mode.DIALOGUE:
 		advance_dialogue()
 		return
+	if mode == Mode.HOLD:
+		release_hold()
+		return
 	if mode == Mode.CHAPTER_BANNER:
 		banner_timer = 0.0
 		mode = Mode.PLAYING
 		player_vy = AIR_FLAP_VEL * 0.65
 		events.append({"type": "flap", "x": PLAYER_X, "y": player_y})
 		return
-	if mode == Mode.GAME_OVER:
+	if mode == Mode.KILL:
 		start_run(true)
 		return
 	if mode == Mode.VICTORY:
 		start_endless()
 		return
+
+	# Each flap/dive adds a small thermal spark pulse to C(t)
+	load_c = minf(CAPACITY_R, load_c + 3.0)
+	if not is_within_capacity():
+		_trigger_kill("OVERLOAD_C_GE_R")
+		return
+
 	if in_water:
 		player_vy = WATER_DIVE_VEL
 		events.append({"type": "dive", "x": PLAYER_X, "y": player_y})
@@ -205,12 +278,16 @@ func action_flap_or_dive() -> void:
 		player_vy = AIR_FLAP_VEL
 		events.append({"type": "flap", "x": PLAYER_X, "y": player_y})
 
+# SHIFT: applies exact involution T(s); every 2nd shift completes T(T(s)) = s!
 func action_shift() -> bool:
 	if mode != Mode.PLAYING or shift_cooldown > 0.0:
 		return false
-	in_water = not in_water
+	medium = apply_involution_T(medium)
+	in_water = (medium == Medium.SEA)
 	shifts_used += 1
+	shift_parity += 1
 	shift_cooldown = 0.14
+
 	var near_surface := absf(player_y - WATER_Y) < 75.0
 	if in_water:
 		if player_y < WATER_Y + 18.0:
@@ -222,12 +299,28 @@ func action_shift() -> bool:
 			player_y = WATER_Y - 18.0
 		player_vy = SHIFT_LAUNCH_VEL
 		events.append({"type": "splash", "x": PLAYER_X, "y": WATER_Y, "near_surface": near_surface})
+
+	# Clean SHIFT cools C(t); completing a full T(T(s)) = s loop gives extra cooling + bonus!
+	load_c = maxf(0.0, load_c - (12.0 if near_surface else 6.0))
+	if shift_parity % 2 == 0:
+		involutions_completed += 1
+		load_c = maxf(0.0, load_c - 10.0)
+		var inv_pts := 10 * combo
+		score += inv_pts
+		events.append({
+			"type": "involution",
+			"x": PLAYER_X + 12.0,
+			"y": WATER_Y - 38.0,
+			"points": inv_pts,
+		})
+
 	if near_surface:
 		combo = mini(combo + 1, 8)
 		combo_timer = 4.0
 		score += 5 * combo
-		events.append({"type": "combo", "x": PLAYER_X, "y": WATER_Y - 24.0, "combo": combo, "points": 5 * combo})
-		_check_chapter_goal()
+		events.append({"type": "combo", "x": PLAYER_X, "y": WATER_Y - 18.0, "combo": combo, "points": 5 * combo})
+
+	_check_chapter_goal()
 	return true
 
 func step(dt: float) -> void:
@@ -235,6 +328,10 @@ func step(dt: float) -> void:
 	if mode == Mode.TITLE or mode == Mode.VICTORY:
 		player_y = 200.0 + sin(elapsed * 3.4) * 14.0
 		distance += 65.0 * dt
+		return
+	if mode == Mode.HOLD:
+		# HOLD invariant: world freezes (u = 0), C(t) cools gently, time NEVER exits HOLD!
+		load_c = maxf(0.0, load_c - 18.0 * dt)
 		return
 	if mode == Mode.DIALOGUE:
 		player_y = 200.0 + sin(elapsed * 3.4) * 10.0
@@ -264,8 +361,16 @@ func step(dt: float) -> void:
 		if combo_timer <= 0.0:
 			combo = 1
 
+	# Continuous spark load C(t) rises over time; must stay < R via SHIFT/pickups/HOLD!
+	var load_rate := float(current_chapter()["load_rate"])
+	load_c += load_rate * dt
+	if not is_within_capacity():
+		load_c = CAPACITY_R
+		_trigger_kill("OVERLOAD_C_GE_R")
+		return
+
 	var ch_bonus := float(current_chapter()["speed_bonus"])
-	scroll_speed = minf(MAX_SPEED, BASE_SPEED + ch_bonus + float(score) * 0.22)
+	scroll_speed = minf(MAX_SPEED, BASE_SPEED + ch_bonus + float(score) * 0.20)
 	distance += scroll_speed * dt
 
 	if in_water:
@@ -295,7 +400,7 @@ func step(dt: float) -> void:
 	spawn_timer -= dt
 	if spawn_timer <= 0.0:
 		_spawn_pattern()
-		spawn_timer = clampf(1.52 - float(chapter_index) * 0.12 - float(score) * 0.0005, 0.88, 1.52)
+		spawn_timer = clampf(1.52 - float(chapter_index) * 0.12 - float(score) * 0.0004, 0.90, 1.52)
 
 	var kept_obs: Array[Dictionary] = []
 	for obs in obstacles:
@@ -307,7 +412,7 @@ func step(dt: float) -> void:
 			if _check_chapter_goal():
 				return
 		if _hits_obstacle(obs):
-			_trigger_game_over()
+			_trigger_kill("COLLISION_BONK")
 			return
 		if float(obs["x"]) + float(obs["w"]) > -60.0:
 			kept_obs.append(obs)
@@ -324,6 +429,7 @@ func step(dt: float) -> void:
 			combo_timer = 4.5
 			var pts := 15 * combo
 			score += pts
+			load_c = maxf(0.0, load_c - 18.0) # Stars & pearls cool C(t)
 			events.append({
 				"type": "pickup",
 				"kind": col["kind"],
@@ -347,9 +453,12 @@ func _check_chapter_goal() -> bool:
 		return false
 	obstacles.clear()
 	collectibles.clear()
+	medium = Medium.SKY
 	in_water = false
 	player_y = 200.0
 	player_vy = 0.0
+	load_c = 10.0
+	_append_witness("CHAPTER_CLEAR", "ch%d" % (chapter_index + 1))
 	events.append({"type": "fanfare", "chapter": chapter_index})
 	if chapter_index + 1 < chapters.size():
 		chapter_index += 1
@@ -436,8 +545,12 @@ func _hits_obstacle(obs: Dictionary) -> bool:
 	var r := PLAYER_R - 3.0
 	return dx * dx + dy * dy < r * r
 
-func _trigger_game_over() -> void:
-	mode = Mode.GAME_OVER
+func _trigger_kill(reason: String) -> void:
+	mode = Mode.KILL
+	kill_reason = reason
+	kill_count += 1
+	player_vy = 0.0
 	if score > best_score:
 		best_score = score
-	events.append({"type": "bonk", "x": PLAYER_X, "y": player_y})
+	_append_witness("KILL_0V_CUT", reason)
+	events.append({"type": "kill", "reason": reason, "x": PLAYER_X, "y": player_y})

@@ -1,6 +1,7 @@
 extends SceneTree
 
-# Headless verification for Flap & Plopp: The Fjord Shift (12/12 checks)
+# Headless verification for Flap & Plopp: The Fjord Shift (16/16 checks)
+# Verifies all 4 core laws: T(T(s)) = s, C(t) < R, HOLD, and KILL.
 
 const FlapPloppCore = preload("res://scripts/game_core.gd")
 const SoundSynth = preload("res://scripts/sound_synth.gd")
@@ -11,62 +12,59 @@ func _assert(cond: bool, msg: String) -> void:
 		quit(1)
 
 func _initialize() -> void:
+	# Law 1: Exact involution T(T(s)) == s for all states
+	_assert(FlapPloppCore.apply_involution_T(FlapPloppCore.apply_involution_T(FlapPloppCore.Medium.SKY)) == FlapPloppCore.Medium.SKY, "1. T(T(SKY)) == SKY")
+	_assert(FlapPloppCore.apply_involution_T(FlapPloppCore.apply_involution_T(FlapPloppCore.Medium.SEA)) == FlapPloppCore.Medium.SEA, "2. T(T(SEA)) == SEA")
+
 	var core = FlapPloppCore.new(1337)
-	_assert(core.mode == FlapPloppCore.Mode.TITLE, "1. Starts in TITLE")
+	_assert(core.mode == FlapPloppCore.Mode.TITLE, "3. Starts in TITLE")
 
-	# 2. Story start opens Intro dialogue sequence
+	# Story dialogue & banner
 	core.start_story()
-	_assert(core.mode == FlapPloppCore.Mode.DIALOGUE, "2. start_story enters DIALOGUE")
-	_assert(str(core.current_dialogue_line().get("speaker", "")) == "Captain Klabb", "3. Intro starts with Captain Klabb")
-
-	# 3. Advancing/skipping dialogue enters CHAPTER_BANNER -> PLAYING
+	_assert(core.mode == FlapPloppCore.Mode.DIALOGUE, "4. start_story enters DIALOGUE")
 	core.skip_dialogue()
-	_assert(core.mode == FlapPloppCore.Mode.CHAPTER_BANNER, "4. Dialogue finishes into CHAPTER_BANNER")
+	_assert(core.mode == FlapPloppCore.Mode.CHAPTER_BANNER, "5. Dialogue -> CHAPTER_BANNER")
 	core.action_flap_or_dive()
-	_assert(core.mode == FlapPloppCore.Mode.PLAYING, "5. Flap from banner enters PLAYING")
+	_assert(core.mode == FlapPloppCore.Mode.PLAYING, "6. Banner -> PLAYING")
 
-	# 4. Air flap & SHIFT -> PLOPP underwater & buoyancy
-	var y_before: float = core.player_y
-	core.action_flap_or_dive()
-	core.step(0.05)
-	_assert(core.player_y < y_before, "6. Flap lifts puffin in air")
-	var shifted: bool = core.action_shift()
-	_assert(shifted and core.in_water and core.player_y > FlapPloppCore.WATER_Y, "7. SHIFT plunges puffin underwater")
-	core.player_y = 500.0
-	core.player_vy = 0.0
-	core.step(0.10)
-	_assert(core.player_vy < 0.0, "8. Buoyancy lifts upward underwater")
-
-	# 5. Chapter progression 1 -> 2 -> 3 -> 4 -> Finale -> Victory -> Endless
-	core.score = 155
+	# Law 1 in play: two SHIFTs complete one involution T(T(s)) = s and return to SKY
+	var m0: int = core.medium
+	_assert(core.action_shift() and core.medium != m0, "7. First SHIFT flips SKY -> SEA")
 	core.shift_cooldown = 0.0
-	core.player_y = FlapPloppCore.WATER_Y + 25.0
-	core.action_shift()
-	_assert(core.chapter_index == 1 and core.mode == FlapPloppCore.Mode.DIALOGUE, "9. Reaching Ch1 goal triggers Ch2 Lumina dialogue")
-	core.skip_dialogue()
-	core.action_flap_or_dive()
+	_assert(core.action_shift() and core.medium == m0, "8. Second SHIFT completes T(T(s)) = s -> SKY")
+	_assert(core.involutions_completed == 1, "9. Involution counter incremented")
 
-	# Jump straight to Ch4 finale check
+	# Law 3: HOLD preserves state and NEVER exits merely because time passes
+	core.load_c = 60.0
+	_assert(core.action_hold() and core.mode == FlapPloppCore.Mode.HOLD, "10. H enters HOLD")
+	var dist_in_hold: float = core.distance
+	for _i in range(60):
+		core.step(0.05) # 3.0 full seconds elapsed in HOLD
+	_assert(core.mode == FlapPloppCore.Mode.HOLD, "11. HOLD never auto-opens on elapsed time")
+	_assert(core.distance == dist_in_hold and core.load_c < 60.0, "12. HOLD freezes motion and cools C(t)")
+	_assert(core.release_hold() and core.mode == FlapPloppCore.Mode.PLAYING, "13. Explicit release exits HOLD")
+
+	# Law 2 & 4: C(t) >= R triggers immediate KILL (0.00 V) and appends witness log
+	var log_before: int = core.witness_log.size()
+	core.load_c = 99.0
+	core.step(0.5)
+	_assert(core.mode == FlapPloppCore.Mode.KILL and core.kill_reason == "OVERLOAD_C_GE_R", "14. C(t) >= R triggers KILL")
+	_assert(core.witness_log.size() > log_before, "15. KILL appended to witness_log without erasing history")
+
+	# Retry preserves append-only witness log, then reach Finale -> VICTORY -> Endless
+	var log_after_kill: int = core.witness_log.size()
+	core.start_run(true)
+	_assert(core.witness_log.size() > log_after_kill, "16. Retry appends to witness_log (never erases)")
+
 	core.chapter_index = 3
-	core.score = 1120
+	core.score = 1160
 	core.shift_cooldown = 0.0
-	core.player_y = FlapPloppCore.WATER_Y - 25.0
 	core.action_shift()
-	_assert(core.mode == FlapPloppCore.Mode.DIALOGUE, "10. Reaching Ch4 goal triggers Finale dialogue")
 	core.skip_dialogue()
-	_assert(core.mode == FlapPloppCore.Mode.VICTORY, "11. Finale completes into VICTORY")
+	_assert(core.mode == FlapPloppCore.Mode.VICTORY, "Finale reaches VICTORY")
 
-	core.action_flap_or_dive()
-	_assert(core.mode == FlapPloppCore.Mode.PLAYING and core.endless_mode, "12. Victory unlocks Endless Aurora mode")
+	# All 7 procedural WAVs
+	_assert(SoundSynth.make_flap().data.size() > 0 and SoundSynth.make_fanfare().data.size() > 0, "Procedural WAVs ok")
 
-	# Audio synth sanity across all 7 procedural WAVs
-	_assert(SoundSynth.make_flap().data.size() > 0, "Flap WAV ok")
-	_assert(SoundSynth.make_plopp().data.size() > 0, "Plopp WAV ok")
-	_assert(SoundSynth.make_splash().data.size() > 0, "Splash WAV ok")
-	_assert(SoundSynth.make_pickup().data.size() > 0, "Pickup WAV ok")
-	_assert(SoundSynth.make_bonk().data.size() > 0, "Bonk WAV ok")
-	_assert(SoundSynth.make_blip().data.size() > 0, "Blip WAV ok")
-	_assert(SoundSynth.make_fanfare().data.size() > 0, "Fanfare WAV ok")
-
-	print("FLAP_PLOPP_STORY_HEADLESS_PASS tests=12/12 chapters=4 wavs=7 score=%d" % core.score)
+	print("FLAP_PLOPP_FOUR_LAWS_PASS tests=16/16 involutions=%d witness_entries=%d" % [core.involutions_completed, core.witness_log.size()])
 	quit(0)

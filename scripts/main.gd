@@ -1,6 +1,6 @@
 extends Node2D
 
-# Flap & Plopp: The Fjord Shift — Renderer, dialogue portraits, aurora & sequences
+# Flap & Plopp: The Fjord Shift — Renderer for T(T(s))=s, C(t)<R, HOLD & KILL
 
 const FlapPloppCore = preload("res://scripts/game_core.gd")
 const SoundSynth = preload("res://scripts/sound_synth.gd")
@@ -49,6 +49,11 @@ func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed and not event.echo:
 		if event.keycode == KEY_SPACE or event.keycode == KEY_UP or event.keycode == KEY_W or event.keycode == KEY_ENTER:
 			core.action_flap_or_dive()
+		elif event.keycode == KEY_H:
+			if core.mode == FlapPloppCore.Mode.PLAYING:
+				core.action_hold()
+			elif core.mode == FlapPloppCore.Mode.HOLD:
+				core.release_hold()
 		elif event.keycode == KEY_SHIFT or event.keycode == KEY_DOWN or event.keycode == KEY_S:
 			if core.mode == FlapPloppCore.Mode.PLAYING:
 				core.action_shift()
@@ -58,7 +63,7 @@ func _unhandled_input(event: InputEvent) -> void:
 				core.start_story()
 		elif event.keycode == KEY_ESCAPE and core.mode == FlapPloppCore.Mode.DIALOGUE:
 			core.skip_dialogue()
-		elif event.keycode == KEY_R and (core.mode == FlapPloppCore.Mode.GAME_OVER or core.mode == FlapPloppCore.Mode.VICTORY):
+		elif event.keycode == KEY_R and (core.mode == FlapPloppCore.Mode.KILL or core.mode == FlapPloppCore.Mode.VICTORY):
 			core.start_story()
 	elif event is InputEventMouseButton and event.pressed:
 		if event.button_index == MOUSE_BUTTON_LEFT:
@@ -76,7 +81,6 @@ func _process(delta: float) -> void:
 	_update_particles(dt)
 	_update_popups(dt)
 
-	# Smoothly blend chapter palette
 	var ch: Dictionary = core.current_chapter()
 	sky_top_cur = sky_top_cur.lerp(ch["sky_top"], dt * 2.5)
 	sky_low_cur = sky_low_cur.lerp(ch["sky_low"], dt * 2.5)
@@ -137,7 +141,7 @@ func _handle_events() -> void:
 				sfx_plopp.pitch_scale = randf_range(0.96, 1.08)
 				sfx_plopp.play()
 				_spawn_burst(ex, ey, 14, Color(0.76, 0.96, 1.0, 0.95), 220.0)
-				popups.append({"text": "PLOPP!", "x": ex, "y": ey - 18.0, "life": 0.65, "color": Color(0.32, 0.82, 1.0)})
+				popups.append({"text": "PLOPP! T(s)", "x": ex, "y": ey - 18.0, "life": 0.65, "color": Color(0.32, 0.82, 1.0)})
 			"splash":
 				squash_x = 0.74
 				squash_y = 1.35
@@ -145,7 +149,15 @@ func _handle_events() -> void:
 				sfx_splash.pitch_scale = randf_range(0.96, 1.08)
 				sfx_splash.play()
 				_spawn_burst(ex, ey, 14, Color(0.92, 0.99, 1.0, 0.95), 240.0)
-				popups.append({"text": "SPLASH!", "x": ex, "y": ey - 22.0, "life": 0.65, "color": Color(1.0, 0.58, 0.20)})
+				popups.append({"text": "SPLASH! T(s)", "x": ex, "y": ey - 22.0, "life": 0.65, "color": Color(1.0, 0.58, 0.20)})
+			"involution":
+				popups.append({
+					"text": "T(T(s))=s  +%d" % int(ev["points"]),
+					"x": ex,
+					"y": ey,
+					"life": 0.95,
+					"color": Color(0.45, 1.0, 0.76),
+				})
 			"combo":
 				popups.append({
 					"text": "SHIFT x%d +%d" % [int(ev["combo"]), int(ev["points"])],
@@ -159,14 +171,17 @@ func _handle_events() -> void:
 				sfx_pickup.play()
 				var c := Color(1.0, 0.88, 0.22) if ev["kind"] == "star" else Color(0.96, 0.84, 1.0)
 				_spawn_burst(ex, ey, 12, c, 190.0)
-				popups.append({"text": "+%d" % int(ev["points"]), "x": ex, "y": ey - 12.0, "life": 0.75, "color": c})
+				popups.append({"text": "+%d COOL!" % int(ev["points"]), "x": ex, "y": ey - 12.0, "life": 0.75, "color": c})
+			"hold_enter":
+				popups.append({"text": "HOLD (0.00 V)", "x": ex, "y": ey - 32.0, "life": 0.8, "color": Color(1.0, 0.92, 0.52)})
 			"skim":
 				_spawn_burst(ex, ey, 4, Color(0.88, 0.98, 1.0, 0.85), 95.0)
-			"bonk":
-				shake_t = 0.25
+			"kill":
+				shake_t = 0.28
 				sfx_bonk.play()
-				_spawn_burst(ex, ey, 18, Color(1.0, 0.42, 0.34, 0.95), 260.0)
-				popups.append({"text": "BONK!", "x": ex, "y": ey - 24.0, "life": 1.0, "color": Color(1.0, 0.35, 0.28)})
+				_spawn_burst(ex, ey, 18, Color(1.0, 0.36, 0.28, 0.95), 260.0)
+				var lbl := "KILL: C(t) >= R!" if str(ev.get("reason", "")) == "OVERLOAD_C_GE_R" else "KILL: BONK! (0.00 V)"
+				popups.append({"text": lbl, "x": ex, "y": ey - 24.0, "life": 1.1, "color": Color(1.0, 0.35, 0.28)})
 			"blip":
 				sfx_blip.pitch_scale = float(ev.get("pitch", 1.0)) * randf_range(0.95, 1.05)
 				sfx_blip.play()
@@ -216,7 +231,7 @@ func _update_popups(dt: float) -> void:
 func _draw() -> void:
 	var shake := Vector2.ZERO
 	if shake_t > 0.0:
-		shake = Vector2(randf_range(-6.0, 6.0), randf_range(-6.0, 6.0)) * (shake_t / 0.25)
+		shake = Vector2(randf_range(-6.0, 6.0), randf_range(-6.0, 6.0)) * (shake_t / 0.28)
 	draw_set_transform(shake, 0.0, Vector2.ONE)
 
 	_draw_sky_and_sea()
@@ -238,7 +253,6 @@ func _draw_sky_and_sea() -> void:
 	draw_rect(Rect2(0, 0, 960, FlapPloppCore.WATER_Y), sky_top_cur)
 	draw_rect(Rect2(0, 190, 960, FlapPloppCore.WATER_Y - 190), Color(sky_low_cur.r, sky_low_cur.g, sky_low_cur.b, 0.65))
 
-	# Aurora ribbons in Chapter 4 (Northern Lighthouse)
 	if bool(ch["aurora"]):
 		for band in range(3):
 			var pts := PackedVector2Array()
@@ -250,12 +264,10 @@ func _draw_sky_and_sea() -> void:
 			var ac := Color(0.28, 0.96, 0.68, 0.26) if band % 2 == 0 else Color(0.54, 0.56, 1.0, 0.22)
 			draw_polyline(pts, ac, 18.0, true)
 
-	# Sun or moon
 	var sun_pos := Vector2(815, 92)
 	draw_circle(sun_pos, 52.0, Color(sun_cur.r, sun_cur.g, sun_cur.b, 0.28))
 	draw_circle(sun_pos, 34.0, sun_cur)
 
-	# Drifting clouds
 	var cloud_alpha := 0.22 if bool(ch["aurora"]) else 0.85
 	for i in range(4):
 		var cx := fmod(float(i) * 270.0 - core.distance * 0.12 + 1200.0, 1120.0) - 80.0
@@ -265,7 +277,6 @@ func _draw_sky_and_sea() -> void:
 		draw_circle(Vector2(cx + 22.0, cy - 8.0), 28.0, cc)
 		draw_circle(Vector2(cx + 46.0, cy), 22.0, cc)
 
-	# Sea layers
 	draw_rect(Rect2(0, FlapPloppCore.WATER_Y, 960, 640 - FlapPloppCore.WATER_Y), sea_top_cur)
 	draw_rect(Rect2(0, FlapPloppCore.WATER_Y + 150, 960, 640 - (FlapPloppCore.WATER_Y + 150)), Color(sea_deep_cur.r, sea_deep_cur.g, sea_deep_cur.b, 0.72))
 	for i in range(5):
@@ -283,13 +294,10 @@ func _draw_lighthouse_if_finale() -> void:
 		return
 	var lx := 820.0
 	var base_y := FlapPloppCore.WATER_Y + 4.0
-	# Rocky islet
 	draw_circle(Vector2(lx, base_y + 10.0), 58.0, Color(0.24, 0.26, 0.32))
-	# Red & white tower
 	draw_rect(Rect2(lx - 22.0, base_y - 145.0, 44.0, 145.0), Color(0.95, 0.94, 0.90))
 	draw_rect(Rect2(lx - 22.0, base_y - 110.0, 44.0, 32.0), Color(0.88, 0.26, 0.22))
 	draw_rect(Rect2(lx - 22.0, base_y - 48.0, 44.0, 32.0), Color(0.88, 0.26, 0.22))
-	# Lantern room + rotating warm golden beam in Victory!
 	draw_rect(Rect2(lx - 18.0, base_y - 172.0, 36.0, 28.0), Color(1.0, 0.92, 0.45))
 	if core.mode == FlapPloppCore.Mode.VICTORY or core.endless_mode:
 		var beam_ang := sin(core.elapsed * 2.2) * 0.28
@@ -351,6 +359,9 @@ func _draw_puffin() -> void:
 	var pos := Vector2(FlapPloppCore.PLAYER_X, core.player_y)
 	var tilt := clampf(core.player_vy * 0.0011, -0.55, 0.65)
 	draw_set_transform(pos, tilt, Vector2(squash_x, squash_y))
+	if core.mode == FlapPloppCore.Mode.HOLD:
+		draw_circle(Vector2.ZERO, 34.0, Color(1.0, 0.92, 0.45, 0.24))
+		draw_arc(Vector2.ZERO, 34.0, 0.0, TAU, 32, Color(1.0, 0.90, 0.35, 0.9), 3.0)
 	draw_circle(Vector2.ZERO, 21.0, Color(0.14, 0.16, 0.22))
 	draw_circle(Vector2(3.0, 5.0), 14.5, Color(0.98, 0.97, 0.94))
 	draw_colored_polygon(PackedVector2Array([Vector2(16.0, -5.0), Vector2(33.0, 1.0), Vector2(16.0, 7.0)]), Color(1.0, 0.44, 0.16))
@@ -378,7 +389,6 @@ func _draw_portrait(kind: String, center: Vector2) -> void:
 			draw_circle(center + Vector2(8, -6), 4.5, Color(1.0, 1.0, 1.0))
 			draw_circle(center + Vector2(9, -6), 2.2, Color(0.1, 0.1, 0.15))
 		"klabb":
-			# Friendly seal captain with yellow sou'wester hat & mustache
 			draw_circle(center + Vector2(0, 6), 20.0, Color(0.52, 0.58, 0.64))
 			draw_colored_polygon(PackedVector2Array([center + Vector2(-24, -4), center + Vector2(24, -4), center + Vector2(14, -22), center + Vector2(-14, -22)]), Color(1.0, 0.80, 0.18))
 			draw_circle(center + Vector2(-7, 2), 3.0, Color(0.1, 0.1, 0.14))
@@ -386,14 +396,12 @@ func _draw_portrait(kind: String, center: Vector2) -> void:
 			draw_circle(center + Vector2(-6, 12), 7.0, Color(0.84, 0.86, 0.88))
 			draw_circle(center + Vector2(6, 12), 7.0, Color(0.84, 0.86, 0.88))
 		"lumina":
-			# Glowing friendly jellyfish
 			draw_circle(center + Vector2(0, -4), 20.0, Color(1.0, 0.54, 0.78))
 			draw_circle(center + Vector2(-7, -4), 3.5, Color(0.14, 0.12, 0.22))
 			draw_circle(center + Vector2(7, -4), 3.5, Color(0.14, 0.12, 0.22))
 			for tx in [-10, 0, 10]:
 				draw_line(center + Vector2(tx, 10), center + Vector2(tx, 24), Color(0.98, 0.74, 0.90), 3.0)
 		"sol":
-			# Warm lighthouse keeper lantern emblem
 			draw_rect(Rect2(center.x - 14, center.y - 18, 28, 36), Color(0.96, 0.94, 0.88))
 			draw_rect(Rect2(center.x - 14, center.y - 2, 28, 12), Color(0.88, 0.26, 0.22))
 			draw_circle(center + Vector2(0, -14), 10.0, Color(1.0, 0.90, 0.32))
@@ -406,13 +414,10 @@ func _draw_dialogue_box() -> void:
 	var box := Rect2(70, 456, 820, 148)
 	draw_rect(box, Color(0.06, 0.12, 0.20, 0.92))
 	draw_rect(box, Color(1.0, 0.88, 0.34, 0.90), false, 3.0)
-
 	_draw_portrait(str(line.get("portrait", "pip")), Vector2(132, 530))
-
 	var speaker := str(line.get("speaker", ""))
 	var full_text := str(line.get("text", ""))
 	var shown := full_text.substr(0, mini(int(core.dialogue_chars), full_text.length()))
-
 	draw_string(font, Vector2(194, 492), speaker.to_upper(), HORIZONTAL_ALIGNMENT_LEFT, -1, 20, Color(1.0, 0.86, 0.28))
 	draw_multiline_string(font, Vector2(194, 526), shown, HORIZONTAL_ALIGNMENT_LEFT, 660.0, 20, 3, Color(0.95, 0.98, 1.0))
 	draw_string(font, Vector2(640, 592), "[SPACE: Next]   [ESC: Skip]", HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color(0.72, 0.86, 0.96))
@@ -420,10 +425,10 @@ func _draw_dialogue_box() -> void:
 func _draw_chapter_banner() -> void:
 	var font := ThemeDB.fallback_font
 	var ch: Dictionary = core.current_chapter()
-	draw_rect(Rect2(200, 215, 560, 126), Color(0.06, 0.12, 0.22, 0.88))
-	draw_rect(Rect2(200, 215, 560, 126), Color(1.0, 0.88, 0.34), false, 3.0)
-	draw_string(font, Vector2(245, 268), str(ch["name"]), HORIZONTAL_ALIGNMENT_LEFT, -1, 30, Color(1.0, 0.88, 0.28))
-	draw_string(font, Vector2(245, 304), str(ch["subtitle"]) + "  —  Goal: %d pts" % int(ch["target_score"]), HORIZONTAL_ALIGNMENT_LEFT, -1, 18, Color(0.92, 0.97, 1.0))
+	draw_rect(Rect2(190, 215, 580, 126), Color(0.06, 0.12, 0.22, 0.88))
+	draw_rect(Rect2(190, 215, 580, 126), Color(1.0, 0.88, 0.34), false, 3.0)
+	draw_string(font, Vector2(230, 266), str(ch["name"]), HORIZONTAL_ALIGNMENT_LEFT, -1, 30, Color(1.0, 0.88, 0.28))
+	draw_string(font, Vector2(230, 304), str(ch["subtitle"]) + "  |  Goal: %d pts" % int(ch["target_score"]), HORIZONTAL_ALIGNMENT_LEFT, -1, 18, Color(0.92, 0.97, 1.0))
 
 func _draw_particles() -> void:
 	for p in particles:
@@ -445,41 +450,58 @@ func _draw_popups() -> void:
 func _draw_hud() -> void:
 	var font := ThemeDB.fallback_font
 	var ch: Dictionary = core.current_chapter()
-	draw_rect(Rect2(16, 14, 928, 46), Color(0.06, 0.13, 0.22, 0.62))
-	draw_string(font, Vector2(28, 42), "SCORE: %d" % core.score, HORIZONTAL_ALIGNMENT_LEFT, -1, 20, Color(1.0, 0.96, 0.85))
+	draw_rect(Rect2(16, 12, 928, 52), Color(0.06, 0.13, 0.22, 0.68))
+	draw_string(font, Vector2(28, 36), "SCORE: %d" % core.score, HORIZONTAL_ALIGNMENT_LEFT, -1, 19, Color(1.0, 0.96, 0.85))
+	draw_string(font, Vector2(28, 56), "T(T(s))=s: %d" % core.involutions_completed, HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color(0.54, 0.98, 0.82))
+
 	if core.combo > 1:
-		draw_string(font, Vector2(180, 42), "x%d!" % core.combo, HORIZONTAL_ALIGNMENT_LEFT, -1, 20, Color(1.0, 0.86, 0.20))
+		draw_string(font, Vector2(170, 36), "x%d!" % core.combo, HORIZONTAL_ALIGNMENT_LEFT, -1, 20, Color(1.0, 0.86, 0.20))
+
+	# Live C(t) < R capacity bar
+	var c_frac := clampf(core.load_c / FlapPloppCore.CAPACITY_R, 0.0, 1.0)
+	var bar_col := Color(0.32, 0.92, 0.62) if c_frac < 0.65 else (Color(1.0, 0.80, 0.22) if c_frac < 0.85 else Color(1.0, 0.32, 0.26))
+	draw_string(font, Vector2(240, 32), "C(t) < R: %d/%d" % [int(round(core.load_c)), int(FlapPloppCore.CAPACITY_R)], HORIZONTAL_ALIGNMENT_LEFT, -1, 15, bar_col)
+	draw_rect(Rect2(240, 38, 170, 14), Color(0.16, 0.22, 0.30))
+	draw_rect(Rect2(240, 38, 170.0 * c_frac, 14), bar_col)
 
 	var label := "ENDLESS AURORA" if core.endless_mode else str(ch["name"])
-	draw_string(font, Vector2(260, 42), label, HORIZONTAL_ALIGNMENT_LEFT, -1, 18, Color(0.88, 0.96, 1.0))
-
-	# Chapter progress bar
+	draw_string(font, Vector2(440, 34), label, HORIZONTAL_ALIGNMENT_LEFT, -1, 17, Color(0.88, 0.96, 1.0))
 	if not core.endless_mode:
 		var target := float(ch["target_score"])
 		var prev_t := float(core.chapter_start_score)
 		var frac := clampf((float(core.score) - prev_t) / maxf(1.0, target - prev_t), 0.0, 1.0)
-		draw_rect(Rect2(560, 28, 170, 16), Color(0.18, 0.28, 0.38))
-		draw_rect(Rect2(560, 28, 170.0 * frac, 16), Color(1.0, 0.86, 0.24))
+		draw_rect(Rect2(440, 42, 200, 10), Color(0.18, 0.28, 0.38))
+		draw_rect(Rect2(440, 42, 200.0 * frac, 10), Color(1.0, 0.86, 0.24))
 
-	var badge := "WATER (DIVE)" if core.in_water else "SKY (FLAP)"
-	draw_string(font, Vector2(755, 42), badge, HORIZONTAL_ALIGNMENT_LEFT, -1, 17, Color(0.72, 0.96, 1.0))
+	var state_badge := "HOLD [SPACE]" if core.mode == FlapPloppCore.Mode.HOLD else ("SEA (DIVE)" if core.in_water else "SKY (FLAP)")
+	draw_string(font, Vector2(680, 36), state_badge, HORIZONTAL_ALIGNMENT_LEFT, -1, 17, Color(0.76, 0.96, 1.0))
+	draw_string(font, Vector2(680, 55), "[SHIFT: T(s)]  [H: HOLD]", HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Color(0.76, 0.86, 0.92))
 
 	if core.mode == FlapPloppCore.Mode.TITLE:
-		draw_rect(Rect2(190, 165, 580, 250), Color(0.06, 0.14, 0.24, 0.88))
-		draw_rect(Rect2(190, 165, 580, 250), Color(1.0, 0.88, 0.32), false, 3.0)
-		draw_string(font, Vector2(290, 224), "FLAP & PLOPP", HORIZONTAL_ALIGNMENT_LEFT, -1, 46, Color(1.0, 0.88, 0.28))
-		draw_string(font, Vector2(325, 256), "The Fjord Shift  —  4-Chapter Story", HORIZONTAL_ALIGNMENT_LEFT, -1, 18, Color(0.72, 0.94, 1.0))
-		draw_string(font, Vector2(235, 304), "SPACE / Left-Click : Flap up (or Dive down in water)", HORIZONTAL_ALIGNMENT_LEFT, -1, 18, Color(0.95, 0.98, 1.0))
-		draw_string(font, Vector2(235, 334), "SHIFT / Right-Click: PLOPP into water / SPLASH to sky!", HORIZONTAL_ALIGNMENT_LEFT, -1, 18, Color(0.64, 0.94, 1.0))
-		draw_string(font, Vector2(305, 384), "Press SPACE to begin Pip's journey!", HORIZONTAL_ALIGNMENT_LEFT, -1, 22, Color(1.0, 0.74, 0.34))
-	elif core.mode == FlapPloppCore.Mode.GAME_OVER:
-		draw_rect(Rect2(235, 195, 490, 200), Color(0.10, 0.12, 0.22, 0.90))
-		draw_string(font, Vector2(360, 250), "BONK! TRY AGAIN!", HORIZONTAL_ALIGNMENT_LEFT, -1, 30, Color(1.0, 0.56, 0.42))
-		draw_string(font, Vector2(285, 296), "%s  |  SCORE: %d  |  BEST: %d" % [str(ch["name"]), core.score, core.best_score], HORIZONTAL_ALIGNMENT_LEFT, -1, 17, Color(0.95, 0.98, 1.0))
-		draw_string(font, Vector2(295, 340), "SPACE: Retry this chapter   |   R: Restart story", HORIZONTAL_ALIGNMENT_LEFT, -1, 18, Color(1.0, 0.88, 0.30))
+		draw_rect(Rect2(170, 150, 620, 275), Color(0.06, 0.14, 0.24, 0.90))
+		draw_rect(Rect2(170, 150, 620, 275), Color(1.0, 0.88, 0.32), false, 3.0)
+		draw_string(font, Vector2(285, 208), "FLAP & PLOPP", HORIZONTAL_ALIGNMENT_LEFT, -1, 46, Color(1.0, 0.88, 0.28))
+		draw_string(font, Vector2(255, 240), "T(T(s)) = s   ·   C(t) < R   ·   HOLD   ·   KILL", HORIZONTAL_ALIGNMENT_LEFT, -1, 18, Color(0.56, 0.98, 0.82))
+		draw_string(font, Vector2(215, 286), "SPACE / Left-Click : Flap up (Sky) or Dive down (Sea)", HORIZONTAL_ALIGNMENT_LEFT, -1, 17, Color(0.95, 0.98, 1.0))
+		draw_string(font, Vector2(215, 314), "SHIFT / Right-Click: Involution T(s) — PLOPP / SPLASH!", HORIZONTAL_ALIGNMENT_LEFT, -1, 17, Color(0.64, 0.94, 1.0))
+		draw_string(font, Vector2(215, 342), "H                  : Safe HOLD bubble (cools C(t) < R)", HORIZONTAL_ALIGNMENT_LEFT, -1, 17, Color(1.0, 0.90, 0.56))
+		draw_string(font, Vector2(290, 392), "Press SPACE to begin Pip's journey!", HORIZONTAL_ALIGNMENT_LEFT, -1, 22, Color(1.0, 0.74, 0.34))
+	elif core.mode == FlapPloppCore.Mode.HOLD:
+		draw_rect(Rect2(255, 215, 450, 145), Color(0.08, 0.16, 0.26, 0.88))
+		draw_rect(Rect2(255, 215, 450, 145), Color(1.0, 0.90, 0.38), false, 3.0)
+		draw_string(font, Vector2(355, 266), "HOLD — SAFE STASIS", HORIZONTAL_ALIGNMENT_LEFT, -1, 24, Color(1.0, 0.90, 0.38))
+		draw_string(font, Vector2(290, 302), "Cooling C(t) = %d / %d  (0.00 V)" % [int(round(core.load_c)), int(FlapPloppCore.CAPACITY_R)], HORIZONTAL_ALIGNMENT_LEFT, -1, 18, Color(0.86, 0.98, 0.92))
+		draw_string(font, Vector2(315, 336), "Press SPACE or H to release OPEN", HORIZONTAL_ALIGNMENT_LEFT, -1, 17, Color(0.92, 0.97, 1.0))
+	elif core.mode == FlapPloppCore.Mode.KILL:
+		draw_rect(Rect2(220, 188, 520, 210), Color(0.14, 0.08, 0.12, 0.92))
+		draw_rect(Rect2(220, 188, 520, 210), Color(1.0, 0.36, 0.30), false, 3.0)
+		var title := "KILL — C(t) >= R OVERLOAD (0.00 V)" if core.kill_reason == "OVERLOAD_C_GE_R" else "KILL — OBSTACLE BONK (0.00 V)"
+		draw_string(font, Vector2(265, 244), title, HORIZONTAL_ALIGNMENT_LEFT, -1, 23, Color(1.0, 0.44, 0.36))
+		draw_string(font, Vector2(270, 286), "%s  |  SCORE: %d  |  LOGGED: %d events" % [str(ch["name"]), core.score, core.witness_log.size()], HORIZONTAL_ALIGNMENT_LEFT, -1, 16, Color(0.95, 0.98, 1.0))
+		draw_string(font, Vector2(275, 344), "SPACE: Retry this chapter   |   R: Restart story", HORIZONTAL_ALIGNMENT_LEFT, -1, 18, Color(1.0, 0.88, 0.30))
 	elif core.mode == FlapPloppCore.Mode.VICTORY:
-		draw_rect(Rect2(215, 180, 530, 210), Color(0.06, 0.14, 0.26, 0.90))
-		draw_rect(Rect2(215, 180, 530, 210), Color(1.0, 0.88, 0.32), false, 3.0)
-		draw_string(font, Vector2(280, 240), "LIGHTHOUSE LIT! YOU WIN!", HORIZONTAL_ALIGNMENT_LEFT, -1, 30, Color(1.0, 0.90, 0.28))
-		draw_string(font, Vector2(300, 286), "FINAL SCORE: %d   |   SHIFTS: %d" % [core.score, core.shifts_used], HORIZONTAL_ALIGNMENT_LEFT, -1, 20, Color(0.92, 0.98, 1.0))
-		draw_string(font, Vector2(265, 344), "SPACE: Continue in Endless Aurora   |   R: Replay Story", HORIZONTAL_ALIGNMENT_LEFT, -1, 18, Color(0.68, 0.96, 0.80))
+		draw_rect(Rect2(210, 175, 540, 220), Color(0.06, 0.14, 0.26, 0.90))
+		draw_rect(Rect2(210, 175, 540, 220), Color(1.0, 0.88, 0.32), false, 3.0)
+		draw_string(font, Vector2(275, 234), "LIGHTHOUSE LIT! YOU WIN!", HORIZONTAL_ALIGNMENT_LEFT, -1, 30, Color(1.0, 0.90, 0.28))
+		draw_string(font, Vector2(260, 280), "SCORE: %d  |  T(T(s))=s: %d  |  WITNESS LOG: %d" % [core.score, core.involutions_completed, core.witness_log.size()], HORIZONTAL_ALIGNMENT_LEFT, -1, 17, Color(0.92, 0.98, 1.0))
+		draw_string(font, Vector2(260, 344), "SPACE: Continue in Endless Aurora   |   R: Replay Story", HORIZONTAL_ALIGNMENT_LEFT, -1, 18, Color(0.68, 0.96, 0.80))
