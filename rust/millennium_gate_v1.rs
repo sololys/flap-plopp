@@ -74,6 +74,24 @@ impl MillenniumEngine {
         }
     }
 
+    /// Document 176 Triadic Realization Law: gamma in A && F^2 == I && t < t* (discrete ticks)
+    /// Design Invalidity Law: U_safe == empty -> immediate KILL (0.00 V).
+    pub fn eval_triadic_horizon(
+        &self,
+        cycle_tick: u64,
+        horizon_tick: u64,
+        u_safe_nonempty: bool,
+    ) -> Verdict {
+        if !u_safe_nonempty || self.load_c_milli >= self.limit_r_milli {
+            return Verdict::Kill;
+        }
+        let iks_ok = Self::apply_iks_milli(Self::apply_iks_milli(250)) == 250;
+        if !iks_ok || cycle_tick >= horizon_tick {
+            return Verdict::Hold;
+        }
+        Verdict::Open
+    }
+
     pub fn apply_involution(s: Medium) -> Medium {
         match s {
             Medium::Sky => Medium::Sea,
@@ -167,6 +185,9 @@ fn main() {
     assert!(MillenniumEngine::omega_tau_and_pulse_ok(27, 50, 0x0177_0540));
     assert!(!MillenniumEngine::omega_tau_and_pulse_ok(541, 1000, 0x0177_0540));
     assert_eq!(MillenniumEngine::cdc_admissible_actions(true, true), 1);
+    assert_eq!(eng.eval_triadic_horizon(100, 200, true), Verdict::Open);
+    assert_eq!(eng.eval_triadic_horizon(200, 200, true), Verdict::Hold);  // t >= t*
+    assert_eq!(eng.eval_triadic_horizon(100, 200, false), Verdict::Kill); // U_safe == empty
     assert_eq!(eng.indicator_product(true, true), 1);
     assert_eq!(eng.admit_monolith(7, 30_000, 0xAA99, false), Verdict::Kill);
     assert_eq!(eng.load_c_milli, eng.limit_r_milli);

@@ -59,6 +59,8 @@ var involutions_completed: int = 0
 var poincare_origin_y: float = -1.0 # Recorded y0 when leaving SKY/SEA on first half-flip
 var poincare_returns: int = 0       # Completed T(T(s))=s returning within epsilon of y0
 var pi_k_projected: bool = false    # Enforces [R, Pi_K] != 0: Pi_K must precede realization R
+var cycle_tick: int = 0             # Monotonic integer cycle coordinate
+var horizon_tick: int = 3600        # Epistemic horizon t* in discrete ticks (renewed on SHIFT/pickup)
 var hold_entries: int = 0
 var kill_count: int = 0
 var witness_log: Array[Dictionary] = [] # Append-only log (never erased on retry)
@@ -114,6 +116,16 @@ func realize_if_projected(delta_y: float) -> bool:
 	pi_k_projected = false
 	player_y += delta_y
 	return true
+
+# Document 176 Triadic Realization & Design Invalidity check (0 float ticks)
+func eval_triadic_horizon(u_safe_nonempty: bool = true) -> int:
+	if not u_safe_nonempty or not is_within_capacity():
+		_trigger_kill("DESIGN_INVALIDITY_U_SAFE_EMPTY" if not u_safe_nonempty else "OVERLOAD_C_GE_R")
+		return Mode.KILL
+	if cycle_tick >= horizon_tick:
+		action_hold()
+		return Mode.HOLD
+	return Mode.PLAYING
 
 func _append_witness(event_name: String, detail: String = "") -> void:
 	witness_log.append({

@@ -73,8 +73,16 @@ func _initialize() -> void:
 	_assert(not core.realize_if_projected(5.0), "17. Realization R without Pi_K is blocked")
 	_assert(core.mode == FlapPloppCore.Mode.KILL and core.kill_reason == "COMMUTATOR_VIOLATION", "18. Commutator breach triggers immediate 0.00 V KILL")
 
+	# Law 6 (Doc 176): Epistemic horizon t >= t* -> HOLD, Design Invalidity U_safe == empty -> KILL
+	core.start_run(true)
+	core.cycle_tick = core.horizon_tick
+	_assert(core.eval_triadic_horizon(true) == FlapPloppCore.Mode.HOLD, "19. Horizon expiration t >= t* forces HOLD")
+	core.start_run(true)
+	core.cycle_tick = 10
+	_assert(core.eval_triadic_horizon(false) == FlapPloppCore.Mode.KILL, "20. Design Invalidity (U_safe == empty) forces KILL")
+
 	# All 7 procedural WAVs
 	_assert(SoundSynth.make_flap().data.size() > 0 and SoundSynth.make_fanfare().data.size() > 0, "Procedural WAVs ok")
 
-	print("FLAP_PLOPP_FOUR_LAWS_PASS tests=18/18 involutions=%d poincare=%d witness_entries=%d" % [core.involutions_completed, core.poincare_returns, core.witness_log.size()])
+	print("FLAP_PLOPP_FOUR_LAWS_PASS tests=20/20 involutions=%d poincare=%d witness_entries=%d" % [core.involutions_completed, core.poincare_returns, core.witness_log.size()])
 	quit(0)

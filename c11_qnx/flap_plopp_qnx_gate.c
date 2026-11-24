@@ -137,6 +137,22 @@ static bool fp_open_with_witness(fp_qnx_gate_t *g, uint64_t mono_ns, uint64_t ev
     return true;
 }
 
+/* Doc 176 Triadic Realization & Design Invalidity (U_safe == empty -> KILL, t >= t* -> HOLD) */
+static uint8_t fp_eval_triadic(
+    const fp_qnx_gate_t *g,
+    uint64_t mono_ns,
+    uint64_t horizon_ns,
+    bool u_safe_nonempty
+) {
+    if (!u_safe_nonempty || g->load_c_milli >= FP_CAPACITY_R_MILLI) {
+        return FP_STATE_KILL; /* Design Invalidity or C(t) >= R -> 0.00 V KILL */
+    }
+    if (mono_ns >= horizon_ns || fp_apply_T(fp_apply_T(g->medium)) != g->medium) {
+        return FP_STATE_HOLD; /* Epistemic horizon expired (t >= t*) -> HOLD */
+    }
+    return FP_STATE_OPEN;
+}
+
 static bool fp_shift(fp_qnx_gate_t *g, uint64_t mono_ns) {
     if (g->state != FP_STATE_OPEN || mono_ns < g->last_mono_ns) {
         return false;
@@ -209,10 +225,13 @@ int main(void) {
     assert(fp_open_with_witness(&g, 5000025000ULL, 0xF1A90001ULL));
     assert(g.state == FP_STATE_OPEN);
 
-    /* 4. Two SHIFTs complete T(T(s)) = s */
+    /* 4. Two SHIFTs complete T(T(s)) = s; verify Doc 176 triadic horizon t < t* & Design Invalidity */
     assert(fp_shift(&g, 5000037500ULL) && g.medium == FP_MED_SEA);
     assert(fp_shift(&g, 5000050000ULL) && g.medium == FP_MED_SKY);
     assert(g.involutions_completed == 1u);
+    assert(fp_eval_triadic(&g, 5000050000ULL, 6000000000ULL, true) == FP_STATE_OPEN);
+    assert(fp_eval_triadic(&g, 6000000000ULL, 6000000000ULL, true) == FP_STATE_HOLD);
+    assert(fp_eval_triadic(&g, 5000050000ULL, 6000000000ULL, false) == FP_STATE_KILL);
 
     /* 5. C(t) >= R triggers immediate 0.00 V KILL and drops indicator product to 0 */
     assert(fp_indicator_product(&g, fp_verify_chain(&g), true) == 1u);
