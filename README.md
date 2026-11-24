@@ -18,9 +18,13 @@ A cute, energetic 2D arcade adventure built with **Godot 4.3** for **GitHub Game
 | **`HOLD`** (enter / release safe bubble) | `H` | — |
 | **Skip Dialogue** / **Restart Story** | `Esc` / `R` | — |
 
-## Architecture & KY Engine v1 ($\kappa_{27}$) Reference
+## Architecture: KY Engine v1, Millennium Engine & QNX C11 Gate
 
-Alongside the playable Godot 4.3 game, [rust/ky_engine_v1.rs](rust/ky_engine_v1.rs) provides a zero-dependency, zero-float Rust reference implementation of **KY Engine v1 ($\kappa_{27}$)** enforcing $x_{t+1} = \Omega(\Pi_K(\Phi(x_t)))$ with the strict lifecycle `○ (RAW) -> ◇ (ESTIMATE) -> □ (STRUCT) -> ⬡ (VIABILITY) -> ◉ (COMMITTED)` and chained witness log verification for both `RealityForgeRules` and `FlapPloppRules`.
+Alongside the playable Godot 4.3 game, the repository includes three zero-dependency, zero-float reference kernels enforcing the same four laws ($T(T(s)) = s$, $C(t) < R$, `HOLD`, `KILL`):
+
+* **KY Engine v1 ($\kappa_{27}$, Rust):** [rust/ky_engine_v1.rs](rust/ky_engine_v1.rs) — 7-module fail-closed kernel (`○ -> ◇ -> □ -> ⬡ -> ◉`) with chained witness log verification (`RealityForgeRules` + `FlapPloppRules`).
+* **Millennium Engine v1 (Rust):** [rust/millennium_gate_v1.rs](rust/millennium_gate_v1.rs) — $O(1)$ P-verifiable 7-monolith admission gate with exact involution and $C(t) < R$ enforcement.
+* **QNX Neutrino 8.0 / C11 Gate:** [c11_qnx/flap_plopp_qnx_gate.c](c11_qnx/flap_plopp_qnx_gate.c) — zero-float C11 consequence gate (`OBJDUMP_ZERO_FLOAT_OK`, monotonic-clock `HOLD` invariant), aligned with [omega-gate-qnx](https://github.com/sololys/omega-gate-qnx).
 
 ## Run & Verify
 
@@ -28,7 +32,7 @@ Alongside the playable Godot 4.3 game, [rust/ky_engine_v1.rs](rust/ky_engine_v1.
 # Play locally in Godot 4.3
 make play
 
-# Run full verification suite (Godot 4.3 16/16 + Rust KY Engine v1 -D warnings)
+# Run full tri-stack verification (Godot 16/16 + Rust KY/Millennium + C11 QNX 0-float)
 make verify
 ```
 
