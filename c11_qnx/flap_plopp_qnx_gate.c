@@ -24,6 +24,15 @@ enum {
 };
 
 #define FP_CAPACITY_R_MILLI  100000u /* R = 100.000 in exact milli-units (0 float) */
+#define FP_TAU_MAX_MILLI        540u /* Omega measurement threshold tau <= 0.540 */
+
+/* Bilateral Double-Pulse Identity: psi_Rx(psi_Tx(x)) == x (0 float) */
+static inline uint32_t fp_psi_tx(uint32_t x) { return x ^ 0xA5A55A5Au; }
+static inline uint32_t fp_psi_rx(uint32_t y) { return y ^ 0xA5A55A5Au; }
+
+static inline bool fp_omega_tau_admissible(uint32_t tau_milli, uint32_t pulse_word) {
+    return (tau_milli <= FP_TAU_MAX_MILLI) && (fp_psi_rx(fp_psi_tx(pulse_word)) == pulse_word);
+}
 
 typedef struct {
     uint64_t seq;
@@ -176,9 +185,11 @@ static bool fp_verify_chain(const fp_qnx_gate_t *g) {
 }
 
 int main(void) {
-    /* 1. Exact involution T(T(s)) == s */
+    /* 1. Exact involution T(T(s)) == s, Double-Pulse Identity & tau <= 0.540 */
     assert(fp_apply_T(fp_apply_T(FP_MED_SKY)) == FP_MED_SKY);
     assert(fp_apply_T(fp_apply_T(FP_MED_SEA)) == FP_MED_SEA);
+    assert(fp_omega_tau_admissible(540u, 0x17700540u));
+    assert(!fp_omega_tau_admissible(541u, 0x17700540u));
 
     fp_qnx_gate_t g;
     fp_init(&g, 1000000ULL);
