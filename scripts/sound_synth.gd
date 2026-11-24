@@ -39,7 +39,6 @@ static func make_plopp() -> AudioStreamWAV:
 	var phase := 0.0
 	for i in range(n):
 		var t := float(i) / float(n)
-		# Cute resonant water bubble sweep: drops then pops up!
 		var freq := 210.0 + 480.0 * (t * t)
 		phase += TAU * freq / float(MIX_RATE)
 		var env := pow(1.0 - t, 1.4) * sin(minf(t * 9.0, 1.0) * PI * 0.5) * 0.55
@@ -86,4 +85,33 @@ static func make_bonk() -> AudioStreamWAV:
 		phase += TAU * freq / float(MIX_RATE)
 		var env := pow(1.0 - t, 1.1) * 0.5
 		s[i] = sin(phase) * env
+	return _make_wav(s)
+
+static func make_blip() -> AudioStreamWAV:
+	var n := int(MIX_RATE * 0.045)
+	var s := PackedFloat32Array()
+	s.resize(n)
+	var phase := 0.0
+	for i in range(n):
+		var t := float(i) / float(n)
+		var freq := lerpf(420.0, 520.0, t)
+		phase += TAU * freq / float(MIX_RATE)
+		var env := sin(t * PI) * 0.22
+		s[i] = sin(phase) * env
+	return _make_wav(s)
+
+static func make_fanfare() -> AudioStreamWAV:
+	var notes := [523.25, 659.25, 783.99, 1046.5] # C5-E5-G5-C6 joyful arpeggio
+	var note_len := int(MIX_RATE * 0.11)
+	var total := note_len * notes.size()
+	var s := PackedFloat32Array()
+	s.resize(total)
+	var phase := 0.0
+	for idx in range(notes.size()):
+		var freq: float = notes[idx]
+		for j in range(note_len):
+			var t := float(j) / float(note_len)
+			phase += TAU * freq / float(MIX_RATE)
+			var env := sin(minf(t * 6.0, 1.0) * PI * 0.5) * pow(1.0 - t * 0.7, 1.2) * 0.36
+			s[idx * note_len + j] = (sin(phase) + 0.3 * sin(phase * 2.0)) * env
 	return _make_wav(s)

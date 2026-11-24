@@ -1,6 +1,6 @@
 extends Node2D
 
-# Flap & Plopp — Cute, energetic 2D renderer, juice, particles & input
+# Flap & Plopp: The Fjord Shift — Renderer, dialogue portraits, aurora & sequences
 
 const FlapPloppCore = preload("res://scripts/game_core.gd")
 const SoundSynth = preload("res://scripts/sound_synth.gd")
@@ -15,11 +15,19 @@ var wing_angle: float = 0.0
 var shake_t: float = 0.0
 var water_ripple_t: float = 0.0
 
+var sky_top_cur: Color = Color(0.56, 0.86, 0.99)
+var sky_low_cur: Color = Color(0.80, 0.96, 1.0)
+var sea_top_cur: Color = Color(0.08, 0.58, 0.78)
+var sea_deep_cur: Color = Color(0.04, 0.38, 0.58)
+var sun_cur: Color = Color(1.0, 0.90, 0.34)
+
 var sfx_flap: AudioStreamPlayer
 var sfx_plopp: AudioStreamPlayer
 var sfx_splash: AudioStreamPlayer
 var sfx_pickup: AudioStreamPlayer
 var sfx_bonk: AudioStreamPlayer
+var sfx_blip: AudioStreamPlayer
+var sfx_fanfare: AudioStreamPlayer
 
 func _ready() -> void:
 	core = FlapPloppCore.new()
@@ -28,6 +36,8 @@ func _ready() -> void:
 	sfx_splash = _make_player(SoundSynth.make_splash())
 	sfx_pickup = _make_player(SoundSynth.make_pickup())
 	sfx_bonk = _make_player(SoundSynth.make_bonk())
+	sfx_blip = _make_player(SoundSynth.make_blip())
+	sfx_fanfare = _make_player(SoundSynth.make_fanfare())
 
 func _make_player(stream: AudioStreamWAV) -> AudioStreamPlayer:
 	var p := AudioStreamPlayer.new()
@@ -37,23 +47,27 @@ func _make_player(stream: AudioStreamWAV) -> AudioStreamPlayer:
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed and not event.echo:
-		if event.keycode == KEY_SPACE or event.keycode == KEY_UP or event.keycode == KEY_W:
+		if event.keycode == KEY_SPACE or event.keycode == KEY_UP or event.keycode == KEY_W or event.keycode == KEY_ENTER:
 			core.action_flap_or_dive()
 		elif event.keycode == KEY_SHIFT or event.keycode == KEY_DOWN or event.keycode == KEY_S:
-			if core.mode != FlapPloppCore.Mode.PLAYING:
-				core.start_run()
-			else:
+			if core.mode == FlapPloppCore.Mode.PLAYING:
 				core.action_shift()
-		elif event.keycode == KEY_R and core.mode == FlapPloppCore.Mode.GAME_OVER:
-			core.start_run()
+			elif core.mode == FlapPloppCore.Mode.DIALOGUE:
+				core.advance_dialogue()
+			elif core.mode == FlapPloppCore.Mode.TITLE:
+				core.start_story()
+		elif event.keycode == KEY_ESCAPE and core.mode == FlapPloppCore.Mode.DIALOGUE:
+			core.skip_dialogue()
+		elif event.keycode == KEY_R and (core.mode == FlapPloppCore.Mode.GAME_OVER or core.mode == FlapPloppCore.Mode.VICTORY):
+			core.start_story()
 	elif event is InputEventMouseButton and event.pressed:
 		if event.button_index == MOUSE_BUTTON_LEFT:
 			core.action_flap_or_dive()
 		elif event.button_index == MOUSE_BUTTON_RIGHT:
-			if core.mode != FlapPloppCore.Mode.PLAYING:
-				core.start_run()
-			else:
+			if core.mode == FlapPloppCore.Mode.PLAYING:
 				core.action_shift()
+			else:
+				core.action_flap_or_dive()
 
 func _process(delta: float) -> void:
 	var dt := minf(delta, 0.05)
@@ -61,6 +75,14 @@ func _process(delta: float) -> void:
 	_handle_events()
 	_update_particles(dt)
 	_update_popups(dt)
+
+	# Smoothly blend chapter palette
+	var ch: Dictionary = core.current_chapter()
+	sky_top_cur = sky_top_cur.lerp(ch["sky_top"], dt * 2.5)
+	sky_low_cur = sky_low_cur.lerp(ch["sky_low"], dt * 2.5)
+	sea_top_cur = sea_top_cur.lerp(ch["sea_top"], dt * 2.5)
+	sea_deep_cur = sea_deep_cur.lerp(ch["sea_deep"], dt * 2.5)
+	sun_cur = sun_cur.lerp(ch["sun_color"], dt * 2.5)
 
 	squash_x = lerpf(squash_x, 1.0, dt * 11.0)
 	squash_y = lerpf(squash_y, 1.0, dt * 11.0)
@@ -70,7 +92,6 @@ func _process(delta: float) -> void:
 	if water_ripple_t > 0.0:
 		water_ripple_t = maxf(0.0, water_ripple_t - dt)
 
-	# Ambient bubbles when swimming underwater
 	if core.mode == FlapPloppCore.Mode.PLAYING and core.in_water and randf() < dt * 14.0:
 		particles.append({
 			"kind": "bubble",
@@ -83,6 +104,9 @@ func _process(delta: float) -> void:
 			"max_life": 0.75,
 			"color": Color(0.86, 0.98, 1.0, 0.85),
 		})
+
+	if core.mode == FlapPloppCore.Mode.VICTORY and randf() < dt * 4.0:
+		_spawn_burst(randf_range(180.0, 780.0), randf_range(70.0, 220.0), 14, Color(1.0, 0.88, 0.25), 180.0)
 
 	queue_redraw()
 
@@ -113,7 +137,7 @@ func _handle_events() -> void:
 				sfx_plopp.pitch_scale = randf_range(0.96, 1.08)
 				sfx_plopp.play()
 				_spawn_burst(ex, ey, 14, Color(0.76, 0.96, 1.0, 0.95), 220.0)
-				popups.append({"text": "PLOPP!", "x": ex, "y": ey - 18.0, "life": 0.65, "color": Color(0.10, 0.55, 0.82)})
+				popups.append({"text": "PLOPP!", "x": ex, "y": ey - 18.0, "life": 0.65, "color": Color(0.32, 0.82, 1.0)})
 			"splash":
 				squash_x = 0.74
 				squash_y = 1.35
@@ -121,14 +145,14 @@ func _handle_events() -> void:
 				sfx_splash.pitch_scale = randf_range(0.96, 1.08)
 				sfx_splash.play()
 				_spawn_burst(ex, ey, 14, Color(0.92, 0.99, 1.0, 0.95), 240.0)
-				popups.append({"text": "SPLASH!", "x": ex, "y": ey - 22.0, "life": 0.65, "color": Color(1.0, 0.52, 0.16)})
+				popups.append({"text": "SPLASH!", "x": ex, "y": ey - 22.0, "life": 0.65, "color": Color(1.0, 0.58, 0.20)})
 			"combo":
 				popups.append({
 					"text": "SHIFT x%d +%d" % [int(ev["combo"]), int(ev["points"])],
 					"x": ex + 20.0,
 					"y": ey - 42.0,
 					"life": 0.9,
-					"color": Color(1.0, 0.84, 0.14),
+					"color": Color(1.0, 0.86, 0.18),
 				})
 			"pickup":
 				sfx_pickup.pitch_scale = 0.92 + float(ev["combo"]) * 0.06
@@ -143,6 +167,12 @@ func _handle_events() -> void:
 				sfx_bonk.play()
 				_spawn_burst(ex, ey, 18, Color(1.0, 0.42, 0.34, 0.95), 260.0)
 				popups.append({"text": "BONK!", "x": ex, "y": ey - 24.0, "life": 1.0, "color": Color(1.0, 0.35, 0.28)})
+			"blip":
+				sfx_blip.pitch_scale = float(ev.get("pitch", 1.0)) * randf_range(0.95, 1.05)
+				sfx_blip.play()
+			"fanfare":
+				sfx_fanfare.play()
+				_spawn_burst(480.0, 200.0, 24, Color(1.0, 0.88, 0.28), 260.0)
 
 func _spawn_burst(x: float, y: float, count: int, color: Color, speed: float) -> void:
 	for i in range(count):
@@ -190,6 +220,7 @@ func _draw() -> void:
 	draw_set_transform(shake, 0.0, Vector2.ONE)
 
 	_draw_sky_and_sea()
+	_draw_lighthouse_if_finale()
 	_draw_obstacles()
 	_draw_collectibles()
 	_draw_puffin()
@@ -197,35 +228,46 @@ func _draw() -> void:
 	_draw_particles()
 	_draw_popups()
 	_draw_hud()
+	if core.mode == FlapPloppCore.Mode.DIALOGUE:
+		_draw_dialogue_box()
+	elif core.mode == FlapPloppCore.Mode.CHAPTER_BANNER:
+		_draw_chapter_banner()
 
 func _draw_sky_and_sea() -> void:
-	# Bright Nordic summer sky
-	draw_rect(Rect2(0, 0, 960, FlapPloppCore.WATER_Y), Color(0.62, 0.89, 0.99))
-	draw_rect(Rect2(0, 210, 960, FlapPloppCore.WATER_Y - 210), Color(0.78, 0.95, 1.0, 0.65))
+	var ch: Dictionary = core.current_chapter()
+	draw_rect(Rect2(0, 0, 960, FlapPloppCore.WATER_Y), sky_top_cur)
+	draw_rect(Rect2(0, 190, 960, FlapPloppCore.WATER_Y - 190), Color(sky_low_cur.r, sky_low_cur.g, sky_low_cur.b, 0.65))
 
-	# Cheerful sun
+	# Aurora ribbons in Chapter 4 (Northern Lighthouse)
+	if bool(ch["aurora"]):
+		for band in range(3):
+			var pts := PackedVector2Array()
+			var bx := 0.0
+			while bx <= 960.0:
+				var by := 85.0 + float(band) * 32.0 + sin(bx * 0.012 + core.elapsed * 1.4 + float(band)) * 18.0
+				pts.append(Vector2(bx, by))
+				bx += 24.0
+			var ac := Color(0.28, 0.96, 0.68, 0.26) if band % 2 == 0 else Color(0.54, 0.56, 1.0, 0.22)
+			draw_polyline(pts, ac, 18.0, true)
+
+	# Sun or moon
 	var sun_pos := Vector2(815, 92)
-	draw_circle(sun_pos, 52.0, Color(1.0, 0.94, 0.52, 0.35))
-	draw_circle(sun_pos, 36.0, Color(1.0, 0.89, 0.32))
+	draw_circle(sun_pos, 52.0, Color(sun_cur.r, sun_cur.g, sun_cur.b, 0.28))
+	draw_circle(sun_pos, 34.0, sun_cur)
 
-	# Soft drifting clouds
+	# Drifting clouds
+	var cloud_alpha := 0.22 if bool(ch["aurora"]) else 0.85
 	for i in range(4):
 		var cx := fmod(float(i) * 270.0 - core.distance * 0.12 + 1200.0, 1120.0) - 80.0
 		var cy := 74.0 + float(i % 2) * 52.0
-		draw_circle(Vector2(cx, cy), 24.0, Color(1.0, 1.0, 1.0, 0.88))
-		draw_circle(Vector2(cx + 22.0, cy - 8.0), 28.0, Color(1.0, 1.0, 1.0, 0.88))
-		draw_circle(Vector2(cx + 46.0, cy), 22.0, Color(1.0, 1.0, 1.0, 0.88))
+		var cc := Color(1.0, 1.0, 1.0, cloud_alpha)
+		draw_circle(Vector2(cx, cy), 24.0, cc)
+		draw_circle(Vector2(cx + 22.0, cy - 8.0), 28.0, cc)
+		draw_circle(Vector2(cx + 46.0, cy), 22.0, cc)
 
-	# Turquoise underwater world
-	draw_rect(
-		Rect2(0, FlapPloppCore.WATER_Y, 960, 640 - FlapPloppCore.WATER_Y),
-		Color(0.08, 0.56, 0.76)
-	)
-	draw_rect(
-		Rect2(0, FlapPloppCore.WATER_Y + 150, 960, 640 - (FlapPloppCore.WATER_Y + 150)),
-		Color(0.05, 0.40, 0.60, 0.65)
-	)
-	# Gentle sunbeams under water
+	# Sea layers
+	draw_rect(Rect2(0, FlapPloppCore.WATER_Y, 960, 640 - FlapPloppCore.WATER_Y), sea_top_cur)
+	draw_rect(Rect2(0, FlapPloppCore.WATER_Y + 150, 960, 640 - (FlapPloppCore.WATER_Y + 150)), Color(sea_deep_cur.r, sea_deep_cur.g, sea_deep_cur.b, 0.72))
 	for i in range(5):
 		var bx := fmod(float(i) * 230.0 - core.distance * 0.25 + 1400.0, 1180.0) - 100.0
 		var poly := PackedVector2Array([
@@ -234,7 +276,27 @@ func _draw_sky_and_sea() -> void:
 			Vector2(bx + 115.0, 640.0),
 			Vector2(bx + 25.0, 640.0),
 		])
-		draw_colored_polygon(poly, Color(0.55, 0.92, 0.98, 0.11))
+		draw_colored_polygon(poly, Color(0.55, 0.92, 0.98, 0.10))
+
+func _draw_lighthouse_if_finale() -> void:
+	if core.chapter_index < 3 and core.mode != FlapPloppCore.Mode.VICTORY:
+		return
+	var lx := 820.0
+	var base_y := FlapPloppCore.WATER_Y + 4.0
+	# Rocky islet
+	draw_circle(Vector2(lx, base_y + 10.0), 58.0, Color(0.24, 0.26, 0.32))
+	# Red & white tower
+	draw_rect(Rect2(lx - 22.0, base_y - 145.0, 44.0, 145.0), Color(0.95, 0.94, 0.90))
+	draw_rect(Rect2(lx - 22.0, base_y - 110.0, 44.0, 32.0), Color(0.88, 0.26, 0.22))
+	draw_rect(Rect2(lx - 22.0, base_y - 48.0, 44.0, 32.0), Color(0.88, 0.26, 0.22))
+	# Lantern room + rotating warm golden beam in Victory!
+	draw_rect(Rect2(lx - 18.0, base_y - 172.0, 36.0, 28.0), Color(1.0, 0.92, 0.45))
+	if core.mode == FlapPloppCore.Mode.VICTORY or core.endless_mode:
+		var beam_ang := sin(core.elapsed * 2.2) * 0.28
+		var p0 := Vector2(lx, base_y - 158.0)
+		var p1 := p0 + Vector2(-420.0, -90.0 + beam_ang * 220.0)
+		var p2 := p0 + Vector2(-420.0, 70.0 + beam_ang * 220.0)
+		draw_colored_polygon(PackedVector2Array([p0, p1, p2]), Color(1.0, 0.94, 0.45, 0.28))
 
 func _draw_water_surface() -> void:
 	var pts := PackedVector2Array()
@@ -257,13 +319,10 @@ func _draw_obstacles() -> void:
 		var oh := float(obs["h"])
 		var rect := Rect2(ox - ow * 0.5, oy - oh * 0.5, ow, oh)
 		if obs["kind"] == "buoy":
-			# Striped red & white harbor buoy
 			draw_rect(rect, Color(0.92, 0.28, 0.24))
 			draw_rect(Rect2(rect.position.x, oy - 18.0, ow, 36.0), Color(0.98, 0.97, 0.94))
-			draw_rect(Rect2(rect.position.x + 5.0, rect.position.y + 6.0, 8.0, oh - 12.0), Color(1.0, 1.0, 1.0, 0.25))
 			draw_circle(Vector2(ox, rect.position.y), ow * 0.45, Color(0.98, 0.78, 0.22))
 		else:
-			# Cute glowing coral jellyfish barrier
 			var pulse := sin(core.elapsed * 6.0 + ox * 0.03) * 4.0
 			draw_rect(Rect2(rect.position.x + 6.0, rect.position.y + 24.0, ow - 12.0, oh - 24.0), Color(0.96, 0.44, 0.68, 0.78))
 			draw_circle(Vector2(ox, rect.position.y + 26.0), ow * 0.56 + pulse * 0.4, Color(1.0, 0.52, 0.74))
@@ -284,7 +343,6 @@ func _draw_collectibles() -> void:
 				pts.append(Vector2(cx + cos(a) * rad, cy + sin(a) * rad))
 			draw_colored_polygon(pts, Color(1.0, 0.86, 0.16))
 		else:
-			# Iridescent underwater pearl
 			draw_circle(Vector2(cx, cy), r + 5.0, Color(0.86, 0.98, 1.0, 0.28))
 			draw_circle(Vector2(cx, cy), r, Color(0.97, 0.92, 1.0))
 			draw_circle(Vector2(cx - 4.0, cy - 4.0), r * 0.32, Color(1.0, 1.0, 1.0))
@@ -293,25 +351,12 @@ func _draw_puffin() -> void:
 	var pos := Vector2(FlapPloppCore.PLAYER_X, core.player_y)
 	var tilt := clampf(core.player_vy * 0.0011, -0.55, 0.65)
 	draw_set_transform(pos, tilt, Vector2(squash_x, squash_y))
-
-	# Cute round body (puffin black back + cream belly)
 	draw_circle(Vector2.ZERO, 21.0, Color(0.14, 0.16, 0.22))
 	draw_circle(Vector2(3.0, 5.0), 14.5, Color(0.98, 0.97, 0.94))
-
-	# Colorful puffin beak
-	var beak := PackedVector2Array([
-		Vector2(16.0, -5.0),
-		Vector2(33.0, 1.0),
-		Vector2(16.0, 7.0),
-	])
-	draw_colored_polygon(beak, Color(1.0, 0.44, 0.16))
+	draw_colored_polygon(PackedVector2Array([Vector2(16.0, -5.0), Vector2(33.0, 1.0), Vector2(16.0, 7.0)]), Color(1.0, 0.44, 0.16))
 	draw_line(Vector2(22.0, -3.0), Vector2(22.0, 5.0), Color(1.0, 0.86, 0.22), 3.0)
-
-	# Flapping wing
 	var wy := sin(wing_angle * 2.0) * 8.0
 	draw_circle(Vector2(-6.0, 2.0 + wy), 10.5, Color(0.20, 0.24, 0.32))
-
-	# Expressive eye (big bright eye in air, cute swimming squint underwater)
 	if core.in_water:
 		draw_line(Vector2(6.0, -7.0), Vector2(13.0, -5.0), Color(0.10, 0.10, 0.14), 2.8)
 		draw_line(Vector2(6.0, -3.0), Vector2(13.0, -5.0), Color(0.10, 0.10, 0.14), 2.8)
@@ -319,10 +364,66 @@ func _draw_puffin() -> void:
 		draw_circle(Vector2(9.0, -6.0), 5.5, Color(1.0, 1.0, 1.0))
 		draw_circle(Vector2(10.5, -6.0), 2.8, Color(0.10, 0.12, 0.18))
 		draw_circle(Vector2(11.3, -7.2), 1.1, Color(1.0, 1.0, 1.0))
-
-	# Rosy cheek
 	draw_circle(Vector2(11.0, 1.5), 3.2, Color(1.0, 0.56, 0.62, 0.65))
 	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+
+func _draw_portrait(kind: String, center: Vector2) -> void:
+	draw_circle(center, 38.0, Color(0.14, 0.24, 0.36))
+	draw_arc(center, 38.0, 0.0, TAU, 32, Color(1.0, 0.88, 0.34), 3.0)
+	match kind:
+		"pip":
+			draw_circle(center, 22.0, Color(0.14, 0.16, 0.22))
+			draw_circle(center + Vector2(3, 5), 14.0, Color(0.98, 0.97, 0.94))
+			draw_colored_polygon(PackedVector2Array([center + Vector2(14, -4), center + Vector2(30, 1), center + Vector2(14, 6)]), Color(1.0, 0.44, 0.16))
+			draw_circle(center + Vector2(8, -6), 4.5, Color(1.0, 1.0, 1.0))
+			draw_circle(center + Vector2(9, -6), 2.2, Color(0.1, 0.1, 0.15))
+		"klabb":
+			# Friendly seal captain with yellow sou'wester hat & mustache
+			draw_circle(center + Vector2(0, 6), 20.0, Color(0.52, 0.58, 0.64))
+			draw_colored_polygon(PackedVector2Array([center + Vector2(-24, -4), center + Vector2(24, -4), center + Vector2(14, -22), center + Vector2(-14, -22)]), Color(1.0, 0.80, 0.18))
+			draw_circle(center + Vector2(-7, 2), 3.0, Color(0.1, 0.1, 0.14))
+			draw_circle(center + Vector2(7, 2), 3.0, Color(0.1, 0.1, 0.14))
+			draw_circle(center + Vector2(-6, 12), 7.0, Color(0.84, 0.86, 0.88))
+			draw_circle(center + Vector2(6, 12), 7.0, Color(0.84, 0.86, 0.88))
+		"lumina":
+			# Glowing friendly jellyfish
+			draw_circle(center + Vector2(0, -4), 20.0, Color(1.0, 0.54, 0.78))
+			draw_circle(center + Vector2(-7, -4), 3.5, Color(0.14, 0.12, 0.22))
+			draw_circle(center + Vector2(7, -4), 3.5, Color(0.14, 0.12, 0.22))
+			for tx in [-10, 0, 10]:
+				draw_line(center + Vector2(tx, 10), center + Vector2(tx, 24), Color(0.98, 0.74, 0.90), 3.0)
+		"sol":
+			# Warm lighthouse keeper lantern emblem
+			draw_rect(Rect2(center.x - 14, center.y - 18, 28, 36), Color(0.96, 0.94, 0.88))
+			draw_rect(Rect2(center.x - 14, center.y - 2, 28, 12), Color(0.88, 0.26, 0.22))
+			draw_circle(center + Vector2(0, -14), 10.0, Color(1.0, 0.90, 0.32))
+
+func _draw_dialogue_box() -> void:
+	var font := ThemeDB.fallback_font
+	var line: Dictionary = core.current_dialogue_line()
+	if line.is_empty():
+		return
+	var box := Rect2(70, 456, 820, 148)
+	draw_rect(box, Color(0.06, 0.12, 0.20, 0.92))
+	draw_rect(box, Color(1.0, 0.88, 0.34, 0.90), false, 3.0)
+
+	_draw_portrait(str(line.get("portrait", "pip")), Vector2(132, 530))
+
+	var speaker := str(line.get("speaker", ""))
+	var full_text := str(line.get("text", ""))
+	var shown := full_text.substr(0, mini(int(core.dialogue_chars), full_text.length()))
+
+	draw_string(font, Vector2(194, 492), speaker.to_upper(), HORIZONTAL_ALIGNMENT_LEFT, -1, 20, Color(1.0, 0.86, 0.28))
+	draw_multiline_string(font, Vector2(194, 526), shown, HORIZONTAL_ALIGNMENT_LEFT, 660.0, 20, 3, Color(0.95, 0.98, 1.0))
+	draw_string(font, Vector2(640, 592), "[SPACE: Next]   [ESC: Skip]", HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color(0.72, 0.86, 0.96))
+
+func _draw_chapter_banner() -> void:
+	var font := ThemeDB.fallback_font
+	var ch: Dictionary = core.current_chapter()
+	draw_rect(Rect2(200, 215, 560, 126), Color(0.06, 0.12, 0.22, 0.88))
+	draw_rect(Rect2(200, 215, 560, 126), Color(1.0, 0.88, 0.34), false, 3.0)
+	draw_string(font, Vector2(245, 268), str(ch["name"]), HORIZONTAL_ALIGNMENT_LEFT, -1, 30, Color(1.0, 0.88, 0.28))
+	draw_string(font, Vector2(245, 304), str(ch["subtitle"]) + "  —  Goal: %d pts" % int(ch["target_score"]), HORIZONTAL_ALIGNMENT_LEFT, -1, 18, Color(0.92, 0.97, 1.0))
 
 func _draw_particles() -> void:
 	for p in particles:
@@ -343,22 +444,42 @@ func _draw_popups() -> void:
 
 func _draw_hud() -> void:
 	var font := ThemeDB.fallback_font
-	var mode_badge := "UNDERWATER (SPACE: DIVE)" if core.in_water else "IN THE SKY (SPACE: FLAP)"
-	draw_rect(Rect2(16, 14, 928, 42), Color(0.08, 0.16, 0.24, 0.55))
-	draw_string(font, Vector2(30, 41), "SCORE: %d" % core.score, HORIZONTAL_ALIGNMENT_LEFT, -1, 22, Color(1.0, 0.96, 0.85))
-	draw_string(font, Vector2(210, 41), "BEST: %d" % core.best_score, HORIZONTAL_ALIGNMENT_LEFT, -1, 20, Color(0.84, 0.94, 1.0))
+	var ch: Dictionary = core.current_chapter()
+	draw_rect(Rect2(16, 14, 928, 46), Color(0.06, 0.13, 0.22, 0.62))
+	draw_string(font, Vector2(28, 42), "SCORE: %d" % core.score, HORIZONTAL_ALIGNMENT_LEFT, -1, 20, Color(1.0, 0.96, 0.85))
 	if core.combo > 1:
-		draw_string(font, Vector2(370, 41), "COMBO x%d!" % core.combo, HORIZONTAL_ALIGNMENT_LEFT, -1, 22, Color(1.0, 0.86, 0.20))
-	draw_string(font, Vector2(560, 41), mode_badge, HORIZONTAL_ALIGNMENT_LEFT, -1, 18, Color(0.92, 0.98, 1.0))
+		draw_string(font, Vector2(180, 42), "x%d!" % core.combo, HORIZONTAL_ALIGNMENT_LEFT, -1, 20, Color(1.0, 0.86, 0.20))
+
+	var label := "ENDLESS AURORA" if core.endless_mode else str(ch["name"])
+	draw_string(font, Vector2(260, 42), label, HORIZONTAL_ALIGNMENT_LEFT, -1, 18, Color(0.88, 0.96, 1.0))
+
+	# Chapter progress bar
+	if not core.endless_mode:
+		var target := float(ch["target_score"])
+		var prev_t := float(core.chapter_start_score)
+		var frac := clampf((float(core.score) - prev_t) / maxf(1.0, target - prev_t), 0.0, 1.0)
+		draw_rect(Rect2(560, 28, 170, 16), Color(0.18, 0.28, 0.38))
+		draw_rect(Rect2(560, 28, 170.0 * frac, 16), Color(1.0, 0.86, 0.24))
+
+	var badge := "WATER (DIVE)" if core.in_water else "SKY (FLAP)"
+	draw_string(font, Vector2(755, 42), badge, HORIZONTAL_ALIGNMENT_LEFT, -1, 17, Color(0.72, 0.96, 1.0))
 
 	if core.mode == FlapPloppCore.Mode.TITLE:
-		draw_rect(Rect2(210, 185, 540, 220), Color(0.08, 0.18, 0.28, 0.84))
-		draw_string(font, Vector2(330, 245), "FLAP & PLOPP", HORIZONTAL_ALIGNMENT_LEFT, -1, 44, Color(1.0, 0.88, 0.28))
-		draw_string(font, Vector2(255, 295), "SPACE / Left-Click : Flap up (or Dive down in water)", HORIZONTAL_ALIGNMENT_LEFT, -1, 18, Color(0.95, 0.98, 1.0))
-		draw_string(font, Vector2(255, 326), "SHIFT / Right-Click: PLOPP into water / SPLASH to sky!", HORIZONTAL_ALIGNMENT_LEFT, -1, 18, Color(0.64, 0.94, 1.0))
-		draw_string(font, Vector2(335, 372), "Press SPACE to take off!", HORIZONTAL_ALIGNMENT_LEFT, -1, 22, Color(1.0, 0.72, 0.34))
+		draw_rect(Rect2(190, 165, 580, 250), Color(0.06, 0.14, 0.24, 0.88))
+		draw_rect(Rect2(190, 165, 580, 250), Color(1.0, 0.88, 0.32), false, 3.0)
+		draw_string(font, Vector2(290, 224), "FLAP & PLOPP", HORIZONTAL_ALIGNMENT_LEFT, -1, 46, Color(1.0, 0.88, 0.28))
+		draw_string(font, Vector2(325, 256), "The Fjord Shift  —  4-Chapter Story", HORIZONTAL_ALIGNMENT_LEFT, -1, 18, Color(0.72, 0.94, 1.0))
+		draw_string(font, Vector2(235, 304), "SPACE / Left-Click : Flap up (or Dive down in water)", HORIZONTAL_ALIGNMENT_LEFT, -1, 18, Color(0.95, 0.98, 1.0))
+		draw_string(font, Vector2(235, 334), "SHIFT / Right-Click: PLOPP into water / SPLASH to sky!", HORIZONTAL_ALIGNMENT_LEFT, -1, 18, Color(0.64, 0.94, 1.0))
+		draw_string(font, Vector2(305, 384), "Press SPACE to begin Pip's journey!", HORIZONTAL_ALIGNMENT_LEFT, -1, 22, Color(1.0, 0.74, 0.34))
 	elif core.mode == FlapPloppCore.Mode.GAME_OVER:
-		draw_rect(Rect2(250, 205, 460, 190), Color(0.12, 0.14, 0.22, 0.88))
-		draw_string(font, Vector2(375, 260), "BONK! NICE RUN!", HORIZONTAL_ALIGNMENT_LEFT, -1, 30, Color(1.0, 0.56, 0.42))
-		draw_string(font, Vector2(335, 305), "SCORE: %d   |   BEST: %d   |   SHIFTS: %d" % [core.score, core.best_score, core.shifts_used], HORIZONTAL_ALIGNMENT_LEFT, -1, 18, Color(0.95, 0.98, 1.0))
-		draw_string(font, Vector2(330, 355), "Press SPACE or R to fly again!", HORIZONTAL_ALIGNMENT_LEFT, -1, 20, Color(1.0, 0.88, 0.30))
+		draw_rect(Rect2(235, 195, 490, 200), Color(0.10, 0.12, 0.22, 0.90))
+		draw_string(font, Vector2(360, 250), "BONK! TRY AGAIN!", HORIZONTAL_ALIGNMENT_LEFT, -1, 30, Color(1.0, 0.56, 0.42))
+		draw_string(font, Vector2(285, 296), "%s  |  SCORE: %d  |  BEST: %d" % [str(ch["name"]), core.score, core.best_score], HORIZONTAL_ALIGNMENT_LEFT, -1, 17, Color(0.95, 0.98, 1.0))
+		draw_string(font, Vector2(295, 340), "SPACE: Retry this chapter   |   R: Restart story", HORIZONTAL_ALIGNMENT_LEFT, -1, 18, Color(1.0, 0.88, 0.30))
+	elif core.mode == FlapPloppCore.Mode.VICTORY:
+		draw_rect(Rect2(215, 180, 530, 210), Color(0.06, 0.14, 0.26, 0.90))
+		draw_rect(Rect2(215, 180, 530, 210), Color(1.0, 0.88, 0.32), false, 3.0)
+		draw_string(font, Vector2(280, 240), "LIGHTHOUSE LIT! YOU WIN!", HORIZONTAL_ALIGNMENT_LEFT, -1, 30, Color(1.0, 0.90, 0.28))
+		draw_string(font, Vector2(300, 286), "FINAL SCORE: %d   |   SHIFTS: %d" % [core.score, core.shifts_used], HORIZONTAL_ALIGNMENT_LEFT, -1, 20, Color(0.92, 0.98, 1.0))
+		draw_string(font, Vector2(265, 344), "SPACE: Continue in Endless Aurora   |   R: Replay Story", HORIZONTAL_ALIGNMENT_LEFT, -1, 18, Color(0.68, 0.96, 0.80))

@@ -1,10 +1,9 @@
 class_name FlapPloppCore
 extends RefCounted
 
-# Flap & Plopp — Core arcade simulation (Godot 4.3)
-# Air: gravity pulls down, SPACE flaps UP.
-# SHIFT: PLOPP into water / SPLASH back into air.
-# Water: buoyancy lifts up, SPACE dives DOWN.
+# Flap & Plopp: The Fjord Shift — Core arcade & chapter/dialogue state machine
+
+const StoryDataScript = preload("res://scripts/story_data.gd")
 
 const VIEW_W := 960.0
 const VIEW_H := 640.0
@@ -19,13 +18,24 @@ const WATER_DIVE_VEL := 330.0
 const SHIFT_PLUNGE_VEL := 440.0
 const SHIFT_LAUNCH_VEL := -460.0
 
-const BASE_SPEED := 250.0
-const MAX_SPEED := 460.0
+const BASE_SPEED := 245.0
+const MAX_SPEED := 480.0
 
-enum Mode { TITLE, PLAYING, GAME_OVER }
+enum Mode { TITLE, DIALOGUE, PLAYING, CHAPTER_BANNER, GAME_OVER, VICTORY }
 
 var mode: int = Mode.TITLE
-var player_y: float = 210.0
+var chapters: Array[Dictionary] = []
+var chapter_index: int = 0
+var chapter_start_score: int = 0
+var endless_mode: bool = false
+
+var dialogue_queue: Array[Dictionary] = []
+var dialogue_idx: int = 0
+var dialogue_chars: float = 0.0
+var dialogue_after_mode: int = Mode.PLAYING
+var banner_timer: float = 0.0
+
+var player_y: float = 200.0
 var player_vy: float = 0.0
 var in_water: bool = false
 var shift_cooldown: float = 0.0
@@ -51,44 +61,118 @@ func _init(seed_val: int = 0) -> void:
 		_rng.seed = seed_val
 	else:
 		_rng.randomize()
+	chapters = StoryDataScript.get_chapters()
 	reset_to_title()
+
+func current_chapter() -> Dictionary:
+	return chapters[clampi(chapter_index, 0, chapters.size() - 1)]
+
+func current_dialogue_line() -> Dictionary:
+	if dialogue_idx >= 0 and dialogue_idx < dialogue_queue.size():
+		return dialogue_queue[dialogue_idx]
+	return {}
 
 func reset_to_title() -> void:
 	mode = Mode.TITLE
+	chapter_index = 0
+	chapter_start_score = 0
+	endless_mode = false
+	dialogue_queue.clear()
+	dialogue_idx = 0
+	dialogue_chars = 0.0
+	banner_timer = 0.0
+	_reset_actor()
+	score = 0
+	combo = 1
+	combo_timer = 0.0
+	shifts_used = 0
+	elapsed = 0.0
+	events.clear()
+
+func _reset_actor() -> void:
 	player_y = 200.0
 	player_vy = 0.0
 	in_water = false
 	shift_cooldown = 0.0
-	scroll_speed = BASE_SPEED
-	distance = 0.0
-	score = 0
-	combo = 1
-	combo_timer = 0.0
-	shifts_used = 0
-	elapsed = 0.0
-	spawn_timer = 0.9
+	scroll_speed = BASE_SPEED + float(current_chapter()["speed_bonus"])
+	spawn_timer = 0.95
 	obstacles.clear()
 	collectibles.clear()
-	events.clear()
 
-func start_run() -> void:
-	mode = Mode.PLAYING
-	player_y = 200.0
-	player_vy = AIR_FLAP_VEL * 0.65
-	in_water = false
-	shift_cooldown = 0.0
-	scroll_speed = BASE_SPEED
-	distance = 0.0
+func start_story() -> void:
+	chapter_index = 0
+	chapter_start_score = 0
+	endless_mode = false
 	score = 0
 	combo = 1
 	combo_timer = 0.0
 	shifts_used = 0
-	elapsed = 0.0
-	spawn_timer = 0.85
-	obstacles.clear()
-	collectibles.clear()
-	events.clear()
+	_reset_actor()
+	_begin_dialogue("intro", Mode.CHAPTER_BANNER)
+
+func start_run(keep_chapter: bool = false) -> void:
+	if not keep_chapter:
+		chapter_index = 0
+		chapter_start_score = 0
+		endless_mode = false
+		score = 0
+		shifts_used = 0
+	else:
+		score = chapter_start_score
+	combo = 1
+	combo_timer = 0.0
+	_reset_actor()
+	mode = Mode.PLAYING
+	player_vy = AIR_FLAP_VEL * 0.65
 	events.append({"type": "flap", "x": PLAYER_X, "y": player_y})
+
+func start_endless() -> void:
+	endless_mode = true
+	chapter_index = chapters.size() - 1
+	chapter_start_score = score
+	_reset_actor()
+	mode = Mode.PLAYING
+	player_vy = AIR_FLAP_VEL * 0.65
+	events.append({"type": "flap", "x": PLAYER_X, "y": player_y})
+
+func _begin_dialogue(seq_id: String, after_mode: int) -> void:
+	dialogue_queue = StoryDataScript.get_sequence(seq_id)
+	dialogue_idx = 0
+	dialogue_chars = 0.0
+	dialogue_after_mode = after_mode
+	mode = Mode.DIALOGUE
+	events.append({"type": "dialogue_start", "seq": seq_id})
+
+func advance_dialogue() -> void:
+	if mode != Mode.DIALOGUE:
+		return
+	var line := current_dialogue_line()
+	var full_len := str(line.get("text", "")).length()
+	if int(dialogue_chars) < full_len:
+		dialogue_chars = float(full_len)
+		return
+	dialogue_idx += 1
+	dialogue_chars = 0.0
+	if dialogue_idx >= dialogue_queue.size():
+		if dialogue_after_mode == Mode.CHAPTER_BANNER:
+			mode = Mode.CHAPTER_BANNER
+			banner_timer = 1.65
+			events.append({"type": "chapter_banner", "chapter": chapter_index})
+		elif dialogue_after_mode == Mode.VICTORY:
+			mode = Mode.VICTORY
+			if score > best_score:
+				best_score = score
+			events.append({"type": "victory", "score": score})
+		else:
+			mode = Mode.PLAYING
+			player_vy = AIR_FLAP_VEL * 0.65
+
+func skip_dialogue() -> void:
+	if mode != Mode.DIALOGUE:
+		return
+	dialogue_idx = dialogue_queue.size()
+	dialogue_chars = 9999.0
+	advance_dialogue()
 
 func consume_events() -> Array[Dictionary]:
 	var out: Array[Dictionary] = events.duplicate()
@@ -96,8 +180,23 @@ func consume_events() -> Array[Dictionary]:
 	return out
 
 func action_flap_or_dive() -> void:
-	if mode != Mode.PLAYING:
-		start_run()
+	if mode == Mode.TITLE:
+		start_story()
+		return
+	if mode == Mode.DIALOGUE:
+		advance_dialogue()
+		return
+	if mode == Mode.CHAPTER_BANNER:
+		banner_timer = 0.0
+		mode = Mode.PLAYING
+		player_vy = AIR_FLAP_VEL * 0.65
+		events.append({"type": "flap", "x": PLAYER_X, "y": player_y})
+		return
+	if mode == Mode.GAME_OVER:
+		start_run(true)
+		return
+	if mode == Mode.VICTORY:
+		start_endless()
 		return
 	if in_water:
 		player_vy = WATER_DIVE_VEL
@@ -128,12 +227,32 @@ func action_shift() -> bool:
 		combo_timer = 4.0
 		score += 5 * combo
 		events.append({"type": "combo", "x": PLAYER_X, "y": WATER_Y - 24.0, "combo": combo, "points": 5 * combo})
+		_check_chapter_goal()
 	return true
 
 func step(dt: float) -> void:
 	elapsed += dt
-	if mode == Mode.TITLE:
-		player_y = 200.0 + sin(elapsed * 3.6) * 14.0
+	if mode == Mode.TITLE or mode == Mode.VICTORY:
+		player_y = 200.0 + sin(elapsed * 3.4) * 14.0
+		distance += 65.0 * dt
+		return
+	if mode == Mode.DIALOGUE:
+		player_y = 200.0 + sin(elapsed * 3.4) * 10.0
+		distance += 50.0 * dt
+		var line := current_dialogue_line()
+		var full_len := str(line.get("text", "")).length()
+		var prev_c := int(dialogue_chars)
+		dialogue_chars = minf(float(full_len), dialogue_chars + 42.0 * dt)
+		if int(dialogue_chars) > prev_c and int(dialogue_chars) % 3 == 0:
+			events.append({"type": "blip", "pitch": float(line.get("pitch", 1.0))})
+		return
+	if mode == Mode.CHAPTER_BANNER:
+		player_y = 200.0 + sin(elapsed * 4.0) * 10.0
+		distance += 90.0 * dt
+		banner_timer -= dt
+		if banner_timer <= 0.0:
+			mode = Mode.PLAYING
+			player_vy = AIR_FLAP_VEL * 0.55
 		return
 	if mode != Mode.PLAYING:
 		return
@@ -145,10 +264,10 @@ func step(dt: float) -> void:
 		if combo_timer <= 0.0:
 			combo = 1
 
-	scroll_speed = minf(MAX_SPEED, BASE_SPEED + float(score) * 0.45)
+	var ch_bonus := float(current_chapter()["speed_bonus"])
+	scroll_speed = minf(MAX_SPEED, BASE_SPEED + ch_bonus + float(score) * 0.22)
 	distance += scroll_speed * dt
 
-	# Vertical physics: air pulls down, water lifts up
 	if in_water:
 		player_vy += WATER_BUOYANCY * dt
 		player_vy = clampf(player_vy, -420.0, 480.0)
@@ -157,13 +276,11 @@ func step(dt: float) -> void:
 		player_vy = clampf(player_vy, -520.0, 560.0)
 	player_y += player_vy * dt
 
-	# Keep inside current medium unless player actively SHIFTs
 	if not in_water:
 		if player_y < 28.0:
 			player_y = 28.0
 			player_vy = maxf(player_vy, 40.0)
 		elif player_y > WATER_Y - PLAYER_R:
-			# Skimming the water surface gently bounces up (forgiving & cute)
 			player_y = WATER_Y - PLAYER_R
 			player_vy = -170.0
 			events.append({"type": "skim", "x": PLAYER_X, "y": WATER_Y})
@@ -175,13 +292,11 @@ func step(dt: float) -> void:
 			player_y = VIEW_H - 30.0
 			player_vy = minf(player_vy, -80.0)
 
-	# Spawn wave patterns that reward SHIFTing between air & water
 	spawn_timer -= dt
 	if spawn_timer <= 0.0:
 		_spawn_pattern()
-		spawn_timer = clampf(1.55 - float(score) * 0.002, 0.92, 1.55)
+		spawn_timer = clampf(1.52 - float(chapter_index) * 0.12 - float(score) * 0.0005, 0.88, 1.52)
 
-	# Move obstacles & check collisions / passes
 	var kept_obs: Array[Dictionary] = []
 	for obs in obstacles:
 		obs["x"] = float(obs["x"]) - scroll_speed * dt
@@ -189,6 +304,8 @@ func step(dt: float) -> void:
 			obs["passed"] = true
 			score += 10 * combo
 			events.append({"type": "pass", "x": PLAYER_X, "y": player_y, "points": 10 * combo})
+			if _check_chapter_goal():
+				return
 		if _hits_obstacle(obs):
 			_trigger_game_over()
 			return
@@ -196,7 +313,6 @@ func step(dt: float) -> void:
 			kept_obs.append(obs)
 	obstacles = kept_obs
 
-	# Move collectibles & check pickups
 	var kept_col: Array[Dictionary] = []
 	for col in collectibles:
 		col["x"] = float(col["x"]) - scroll_speed * dt
@@ -216,16 +332,38 @@ func step(dt: float) -> void:
 				"points": pts,
 				"combo": combo,
 			})
+			if _check_chapter_goal():
+				return
 			continue
 		if float(col["x"]) > -40.0:
 			kept_col.append(col)
 	collectibles = kept_col
 
+func _check_chapter_goal() -> bool:
+	if endless_mode or mode != Mode.PLAYING:
+		return false
+	var target := int(current_chapter()["target_score"])
+	if score < target:
+		return false
+	obstacles.clear()
+	collectibles.clear()
+	in_water = false
+	player_y = 200.0
+	player_vy = 0.0
+	events.append({"type": "fanfare", "chapter": chapter_index})
+	if chapter_index + 1 < chapters.size():
+		chapter_index += 1
+		chapter_start_score = score
+		var seq_names := ["intro", "ch2_intro", "ch3_intro", "ch4_intro"]
+		_begin_dialogue(seq_names[chapter_index], Mode.CHAPTER_BANNER)
+	else:
+		_begin_dialogue("finale", Mode.VICTORY)
+	return true
+
 func _spawn_pattern() -> void:
 	var spawn_x := VIEW_W + 70.0
 	var roll := _rng.randi_range(0, 2)
 	if roll == 0:
-		# Air buoy + underwater pearl -> encourages PLOPP!
 		obstacles.append({
 			"kind": "buoy",
 			"x": spawn_x,
@@ -241,7 +379,6 @@ func _spawn_pattern() -> void:
 			"r": 14.0,
 		})
 	elif roll == 1:
-		# Underwater jelly/log + sky star -> encourages SPLASH!
 		obstacles.append({
 			"kind": "jelly",
 			"x": spawn_x,
@@ -257,7 +394,6 @@ func _spawn_pattern() -> void:
 			"r": 14.0,
 		})
 	else:
-		# High cloud post OR deep kelp, leaving a clear gap + bonus pickup
 		var air_high := _rng.randi_range(0, 1) == 0
 		if air_high:
 			obstacles.append({
