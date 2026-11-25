@@ -1,5 +1,6 @@
 // Flap & Plopp — 10-Node LiH Combinational Sluse Gate (SystemVerilog RTL Mirror)
 // Bit-exact hardware mirror of c11_qnx/lih_sluse_gate.c (40 800 ps window, 0 float)
+`timescale 1ns/1ps
 
 module lih_sluse_gate (
     input  logic [11:0] active_nodes_mask,
