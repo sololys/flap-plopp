@@ -28,7 +28,14 @@ verify-qnx-c11:
 		echo "OBJDUMP_ZERO_FLOAT_OK"; \
 	fi
 	/tmp/flap_plopp_qnx_gate
-	rm -f /tmp/flap_plopp_qnx_gate
+	$(CC) $(CFLAGS) c11_qnx/sluse_3d_gate.c -o /tmp/flap_plopp_sluse_3d
+	@if objdump -d /tmp/flap_plopp_sluse_3d | grep -E '\b(addss|subss|mulss|divss|addsd|subsd|mulsd|divsd|ucomiss|ucomisd|cvtsi2ss|cvtsi2sd|fld|fstp|fadd|fmul)\b' >/dev/null; then \
+		echo "FLOAT_INSN_DETECTED_SLUSE"; exit 1; \
+	else \
+		echo "OBJDUMP_ZERO_FLOAT_SLUSE_OK"; \
+	fi
+	/tmp/flap_plopp_sluse_3d
+	rm -f /tmp/flap_plopp_qnx_gate /tmp/flap_plopp_sluse_3d
 
 clean:
-	rm -f /tmp/flap_plopp_ky_engine_v1 /tmp/flap_plopp_millennium_v1 /tmp/flap_plopp_qnx_gate
+	rm -f /tmp/flap_plopp_ky_engine_v1 /tmp/flap_plopp_millennium_v1 /tmp/flap_plopp_qnx_gate /tmp/flap_plopp_sluse_3d
