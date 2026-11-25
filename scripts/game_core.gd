@@ -164,6 +164,43 @@ func eval_crash3(
 		return Mode.HOLD
 	return Mode.PLAYING
 
+# Document 183 (SPEC-387) Theorem 1: History-Dependent POVM Divergence (0 float, milli-scale)
+# E_+(K_gamma) = 0.5*(I + eta*sigma_z + 2*eps*K_gamma*sigma_x), valid iff eta^2 + 4*eps^2 <= 1.
+# Returns p_+(gamma) in milli-units (500 + eps_milli * k_gamma), or -1 if POVM is invalid.
+static func povm_outcome_milli(eta_milli: int, eps_milli: int, k_gamma: int) -> int:
+	if eta_milli <= 0 or eta_milli >= 1000 or eps_milli <= 0 or (k_gamma != 0 and k_gamma != 1):
+		return -1
+	if eta_milli * eta_milli + 4 * eps_milli * eps_milli > 1000000:
+		return -1
+	return 500 + eps_milli * k_gamma
+
+# Document 183 (SPEC-387) Table 1: Cross-Disciplinary Selection over Generation (0 float)
+# Checks POVM validity, SDE Lipschitz bound, ECC cofactor h <= 8, and MCMC detailed balance.
+func eval_doc183_admissibility(
+	eta_milli: int,
+	eps_milli: int,
+	lip_lhs: int,
+	lip_rhs: int,
+	ecc_cofactor_h: int,
+	pi_x: int,
+	p_xy: int,
+	pi_y: int,
+	p_yx: int
+) -> int:
+	var povm_ok := povm_outcome_milli(eta_milli, eps_milli, 1) >= 0
+	var lip_ok := lip_lhs <= lip_rhs
+	var ecc_ok := ecc_cofactor_h >= 1 and ecc_cofactor_h <= 8
+	if not povm_ok or not lip_ok or not ecc_ok:
+		_trigger_kill("DOC183_ADMISSIBILITY_KILL")
+		return Mode.KILL
+	if pi_x * p_xy != pi_y * p_yx:
+		if mode == Mode.PLAYING:
+			action_hold()
+		else:
+			mode = Mode.HOLD
+		return Mode.HOLD
+	return Mode.PLAYING
+
 func _append_witness(event_name: String, detail: String = "") -> void:
 	witness_log.append({
 		"seq": witness_log.size(),

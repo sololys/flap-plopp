@@ -100,8 +100,22 @@ func _initialize() -> void:
 	_assert(core.eval_crash3(0, 30, 50, true, true, false) == FlapPloppCore.Mode.KILL and core.kill_reason == "CRASH3_WITNESS_KILL", "26a. Crash3 Tri-System Clash (S1 PASS, S2 HOLD, S3 KILL -> KILL)")
 	_assert(core.eval_crash3(0, 10, 50, false, false, false) == FlapPloppCore.Mode.KILL, "26b. Crash3 post-KILL latch immunity")
 
+	# Law 9 (Doc 183 SPEC-387): POVM History Divergence (dp = eps) & Selection over Generation
+	var p_a := FlapPloppCore.povm_outcome_milli(600, 300, 1)
+	var p_b := FlapPloppCore.povm_outcome_milli(600, 300, 0)
+	_assert(p_a == 800 and p_b == 500 and (p_a - p_b) == 300, "27a. POVM history divergence dp = eps != 0")
+	_assert(FlapPloppCore.povm_outcome_milli(800, 400, 1) == -1, "27b. Invalid POVM (eta^2 + 4*eps^2 > 1) rejected")
+	core.start_run(true)
+	_assert(core.eval_doc183_admissibility(600, 300, 40, 50, 1, 3, 4, 6, 2) == FlapPloppCore.Mode.PLAYING, "28. Doc 183 full admissibility (POVM+Lipschitz+ECC+MCMC) -> OPEN")
+	core.start_run(true)
+	_assert(core.eval_doc183_admissibility(600, 300, 40, 50, 1, 3, 4, 5, 2) == FlapPloppCore.Mode.HOLD, "29. Doc 183 MCMC detailed balance breach -> HOLD")
+	core.start_run(true)
+	_assert(core.eval_doc183_admissibility(600, 300, 60, 50, 1, 3, 4, 6, 2) == FlapPloppCore.Mode.KILL and core.kill_reason == "DOC183_ADMISSIBILITY_KILL", "30a. Doc 183 Lipschitz blow-up -> KILL")
+	core.start_run(true)
+	_assert(core.eval_doc183_admissibility(600, 300, 40, 50, 16, 3, 4, 6, 2) == FlapPloppCore.Mode.KILL, "30b. Doc 183 ECC cofactor h > 8 (Pohlig-Hellman risk) -> KILL")
+
 	# All 7 procedural WAVs
 	_assert(SoundSynth.make_flap().data.size() > 0 and SoundSynth.make_fanfare().data.size() > 0, "Procedural WAVs ok")
 
-	print("FLAP_PLOPP_FOUR_LAWS_PASS tests=26/26 involutions=%d poincare=%d witness_entries=%d" % [core.involutions_completed, core.poincare_returns, core.witness_log.size()])
+	print("FLAP_PLOPP_FOUR_LAWS_PASS tests=30/30 involutions=%d poincare=%d witness_entries=%d" % [core.involutions_completed, core.poincare_returns, core.witness_log.size()])
 	quit(0)

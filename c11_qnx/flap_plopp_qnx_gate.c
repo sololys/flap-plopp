@@ -202,6 +202,52 @@ static uint8_t fp_eval_crash3(
     return FP_STATE_OPEN;
 }
 
+/* Doc 183 (SPEC-387) Theorem 1: History-Dependent POVM Divergence (0 float, milli-scale)
+ * Valid iff eta^2 + 4*eps^2 <= 1; outputs p_+(gamma) = 500 + eps_milli * k_gamma. */
+static bool fp_povm_outcome_milli(
+    uint32_t eta_milli,
+    uint32_t eps_milli,
+    uint8_t k_gamma,
+    uint32_t *out_p_milli
+) {
+    if (eta_milli == 0u || eta_milli >= 1000u || eps_milli == 0u || k_gamma > 1u || !out_p_milli) {
+        return false;
+    }
+    uint64_t norm_sq = (uint64_t)eta_milli * (uint64_t)eta_milli
+        + 4ULL * (uint64_t)eps_milli * (uint64_t)eps_milli;
+    if (norm_sq > 1000000ULL) {
+        return false;
+    }
+    *out_p_milli = 500u + eps_milli * (uint32_t)k_gamma;
+    return true;
+}
+
+/* Doc 183 (SPEC-387) Table 1: Cross-Disciplinary Selection over Generation (0 float)
+ * Checks POVM validity, SDE Lipschitz bound, ECC cofactor h <= 8, and MCMC detailed balance. */
+static uint8_t fp_eval_doc183_admissibility(
+    uint32_t eta_milli,
+    uint32_t eps_milli,
+    uint64_t lip_lhs,
+    uint64_t lip_rhs,
+    uint32_t ecc_cofactor_h,
+    uint64_t pi_x,
+    uint64_t p_xy,
+    uint64_t pi_y,
+    uint64_t p_yx
+) {
+    uint32_t p_probe = 0u;
+    bool povm_ok = fp_povm_outcome_milli(eta_milli, eps_milli, 1u, &p_probe);
+    bool lip_ok  = (lip_lhs <= lip_rhs);
+    bool ecc_ok  = (ecc_cofactor_h >= 1u && ecc_cofactor_h <= 8u);
+    if (!povm_ok || !lip_ok || !ecc_ok) {
+        return FP_STATE_KILL;
+    }
+    if (pi_x * p_xy != pi_y * p_yx) {
+        return FP_STATE_HOLD;
+    }
+    return FP_STATE_OPEN;
+}
+
 static bool fp_shift(fp_qnx_gate_t *g, uint64_t mono_ns) {
     if (g->state != FP_STATE_OPEN || mono_ns < g->last_mono_ns) {
         return false;
@@ -313,7 +359,18 @@ int main(void) {
     assert(c3.log[c3.log_len - 1u].v_out_allow == 0u);
     assert(fp_verify_chain(&c3));
 
-    printf("FLAP_PLOPP_QNX_C11_PASS log_entries=%u crash3_entries=%u involutions=%u chain_valid=1\n",
-           g.log_len, cg.log_len + c3.log_len, g.involutions_completed);
+    /* 8. Doc 183 (SPEC-387): POVM History Divergence (dp = eps) & Cross-Disciplinary Admissibility */
+    uint32_t pa = 0u, pb = 0u, pinv = 0u;
+    assert(fp_povm_outcome_milli(600u, 300u, 1u, &pa));
+    assert(fp_povm_outcome_milli(600u, 300u, 0u, &pb));
+    assert(pa == 800u && pb == 500u && (pa - pb) == 300u);
+    assert(!fp_povm_outcome_milli(800u, 400u, 1u, &pinv));
+    assert(fp_eval_doc183_admissibility(600u, 300u, 40ULL, 50ULL, 1u, 3ULL, 4ULL, 6ULL, 2ULL) == FP_STATE_OPEN);
+    assert(fp_eval_doc183_admissibility(600u, 300u, 40ULL, 50ULL, 1u, 3ULL, 4ULL, 5ULL, 2ULL) == FP_STATE_HOLD);
+    assert(fp_eval_doc183_admissibility(600u, 300u, 60ULL, 50ULL, 1u, 3ULL, 4ULL, 6ULL, 2ULL) == FP_STATE_KILL);
+    assert(fp_eval_doc183_admissibility(600u, 300u, 40ULL, 50ULL, 16u, 3ULL, 4ULL, 6ULL, 2ULL) == FP_STATE_KILL);
+
+    printf("FLAP_PLOPP_QNX_C11_PASS log_entries=%u crash3_entries=%u doc183_dp=%u involutions=%u chain_valid=1\n",
+           g.log_len, cg.log_len + c3.log_len, pa - pb, g.involutions_completed);
     return 0;
 }

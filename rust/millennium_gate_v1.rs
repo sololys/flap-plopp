@@ -135,6 +135,50 @@ impl MillenniumEngine {
         Verdict::Open
     }
 
+    /// Document 183 (SPEC-387) Theorem 1: History-Dependent POVM Divergence (0 float, milli-scale)
+    /// Valid iff eta^2 + 4*eps^2 <= 1; returns p_+(gamma) = 500 + eps_milli * k_gamma.
+    pub fn povm_outcome_milli(eta_milli: u64, eps_milli: u64, k_gamma: u8) -> Option<u64> {
+        if eta_milli == 0 || eta_milli >= 1000 || eps_milli == 0 || k_gamma > 1 {
+            return None;
+        }
+        let norm_sq = eta_milli
+            .saturating_mul(eta_milli)
+            .saturating_add(4u64.saturating_mul(eps_milli).saturating_mul(eps_milli));
+        if norm_sq > 1_000_000 {
+            return None;
+        }
+        Some(500 + eps_milli * (k_gamma as u64))
+    }
+
+    /// Document 183 (SPEC-387) Table 1: Cross-Disciplinary Selection over Generation (0 float)
+    #[allow(clippy::too_many_arguments)]
+    pub fn eval_doc183_admissibility(
+        &mut self,
+        eta_milli: u64,
+        eps_milli: u64,
+        lip_lhs: u64,
+        lip_rhs: u64,
+        ecc_cofactor_h: u64,
+        pi_x: u64,
+        p_xy: u64,
+        pi_y: u64,
+        p_yx: u64,
+    ) -> Verdict {
+        let povm_ok = Self::povm_outcome_milli(eta_milli, eps_milli, 1).is_some();
+        let lip_ok = lip_lhs <= lip_rhs;
+        let ecc_ok = (1..=8).contains(&ecc_cofactor_h);
+        if !povm_ok || !lip_ok || !ecc_ok {
+            self.seal(0x0183_AD15, Verdict::Kill);
+            return Verdict::Kill;
+        }
+        if pi_x.saturating_mul(p_xy) != pi_y.saturating_mul(p_yx) {
+            self.seal(0x0183_AD15, Verdict::Hold);
+            return Verdict::Hold;
+        }
+        self.seal(0x0183_AD15, Verdict::Open);
+        Verdict::Open
+    }
+
     pub fn apply_involution(s: Medium) -> Medium {
         match s {
             Medium::Sky => Medium::Sea,
@@ -247,6 +291,28 @@ fn main() {
     assert_eq!(c3.eval_crash3(0, 26, 50, true, false, false, false), Verdict::Kill); // Test D
     assert_eq!(c3.eval_crash3(0, 30, 50, true, true, false, false), Verdict::Kill); // Crash^3
     assert_eq!(c3.eval_crash3(0, 10, 50, false, false, false, true), Verdict::Kill); // Latch
+
+    // 6. Doc 183 (SPEC-387) POVM History Divergence (dp = eps) & Selection over Generation
+    let pa = MillenniumEngine::povm_outcome_milli(600, 300, 1).unwrap();
+    let pb = MillenniumEngine::povm_outcome_milli(600, 300, 0).unwrap();
+    assert_eq!(pa - pb, 300); // Exact dp = eps != 0
+    assert_eq!(MillenniumEngine::povm_outcome_milli(800, 400, 1), None);
+    assert_eq!(
+        c3.eval_doc183_admissibility(600, 300, 40, 50, 1, 3, 4, 6, 2),
+        Verdict::Open
+    );
+    assert_eq!(
+        c3.eval_doc183_admissibility(600, 300, 40, 50, 1, 3, 4, 5, 2),
+        Verdict::Hold
+    );
+    assert_eq!(
+        c3.eval_doc183_admissibility(600, 300, 60, 50, 1, 3, 4, 6, 2),
+        Verdict::Kill
+    );
+    assert_eq!(
+        c3.eval_doc183_admissibility(600, 300, 40, 50, 16, 3, 4, 6, 2),
+        Verdict::Kill
+    );
 
     println!(
         "MILLENNIUM_ENGINE_V1_PASS monoliths=7/7 involutions={} witnesses={} crash3_witnesses={} head_hash=0x{:016x}",

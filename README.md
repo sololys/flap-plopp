@@ -23,8 +23,8 @@ A cute, energetic 2D arcade adventure built with **Godot 4.3** for **GitHub Game
 Alongside the playable Godot 4.3 game, the repository includes three zero-dependency, zero-float reference kernels enforcing the same four laws ($T(T(s)) = s$, $C(t) < R$, `HOLD`, `KILL`):
 
 * **KY Engine v1 ($\kappa_{27}$, Rust):** [rust/ky_engine_v1.rs](rust/ky_engine_v1.rs) — 7-module fail-closed kernel (`○ -> ◇ -> □ -> ⬡ -> ◉`) with chained witness log verification (`RealityForgeRules` + `FlapPloppRules`).
-* **Millennium Engine v1 (Rust):** [rust/millennium_gate_v1.rs](rust/millennium_gate_v1.rs) — $O(1)$ P-verifiable 7-monolith admission gate with exact involution ($T^2 = I$ in `HOLD` phase space $M$), exact rational boundary threshold $\tau \le 27/50$ on $\partial M \to \{\text{OPEN}, \text{KILL}\}$, Double-Pulse check ($\psi_{\text{Rx}}(\psi_{\text{Tx}}(x)) \equiv x$), discrete epistemic horizon ($t < t^*$), Design Invalidity ($U_{\text{safe}} = \emptyset \to \text{KILL}$), Rev² anti-reversibility guard ($\text{Dom}(F) \cap D_2 = \emptyset$), **Doc 181 `Crash³` Tri-System Collision Arbiter** ($S_1 \times S_2 \times S_3 \to \text{KILL} > \text{HOLD} > \text{OPEN}$), Constrained Decision Collapse (`|A| -> 1`), and $C(t) < R$ enforcement.
-* **QNX Neutrino 8.0 / C11 Gate:** [c11_qnx/flap_plopp_qnx_gate.c](c11_qnx/flap_plopp_qnx_gate.c) — zero-float C11 consequence gate (`OBJDUMP_ZERO_FLOAT_OK`, exact $\tau \le 27/50$, discrete $t < t^*$ horizon, Design Invalidity check, Double-Pulse involution, Rev² guard, **Doc 181 `Crash³` priority arbiter** with post-`KILL` latch immunity, monotonic-clock `HOLD` phase-space invariant), aligned with [omega-gate-qnx](https://github.com/sololys/omega-gate-qnx) and Zenodo DOIs [`10.5281/zenodo.23244129`](https://doi.org/10.5281/zenodo.23244129) & [`10.5281/zenodo.23244425`](https://doi.org/10.5281/zenodo.23244425) (`INSPIRED_BY != IMPLEMENTS != PROVES`).
+* **Millennium Engine v1 (Rust):** [rust/millennium_gate_v1.rs](rust/millennium_gate_v1.rs) — $O(1)$ P-verifiable 7-monolith admission gate with exact involution ($T^2 = I$ in `HOLD` phase space $M$), exact rational boundary threshold $\tau \le 27/50$ on $\partial M \to \{\text{OPEN}, \text{KILL}\}$, Double-Pulse check ($\psi_{\text{Rx}}(\psi_{\text{Tx}}(x)) \equiv x$), discrete epistemic horizon ($t < t^*$), Design Invalidity ($U_{\text{safe}} = \emptyset \to \text{KILL}$), Rev² anti-reversibility guard ($\text{Dom}(F) \cap D_2 = \emptyset$), **Doc 181 `Crash³` Tri-System Collision Arbiter** ($S_1 \times S_2 \times S_3 \to \text{KILL} > \text{HOLD} > \text{OPEN}$), **Doc 183 POVM History Divergence** ($\Delta p = \varepsilon$, $\eta^2 + 4\varepsilon^2 \le 1$) & cross-disciplinary admissibility (Lipschitz SDE, ECC $N = hq$, MCMC detailed balance), Constrained Decision Collapse (`|A| -> 1`), and $C(t) < R$ enforcement.
+* **QNX Neutrino 8.0 / C11 Gate:** [c11_qnx/flap_plopp_qnx_gate.c](c11_qnx/flap_plopp_qnx_gate.c) — zero-float C11 consequence gate (`OBJDUMP_ZERO_FLOAT_OK`, exact $\tau \le 27/50$, discrete $t < t^*$ horizon, Design Invalidity check, Double-Pulse involution, Rev² guard, **Doc 181 `Crash³` priority arbiter** with post-`KILL` latch immunity, **Doc 183 POVM $\Delta p = \varepsilon$ & Selection-over-Generation gate**, monotonic-clock `HOLD` phase-space invariant), aligned with [omega-gate-qnx](https://github.com/sololys/omega-gate-qnx) and Zenodo DOIs [`10.5281/zenodo.23244129`](https://doi.org/10.5281/zenodo.23244129) & [`10.5281/zenodo.23244425`](https://doi.org/10.5281/zenodo.23244425) (`INSPIRED_BY != IMPLEMENTS != PROVES`).
 
 ## Run & Verify
 
@@ -32,7 +32,7 @@ Alongside the playable Godot 4.3 game, the repository includes three zero-depend
 # Play locally in Godot 4.3
 make play
 
-# Run full tri-stack verification (Godot 26/26 + Rust KY/Millennium + C11 QNX 0-float)
+# Run full tri-stack verification (Godot 30/30 + Rust KY/Millennium + C11 QNX 0-float)
 make verify
 ```
 
