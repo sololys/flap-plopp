@@ -1,14 +1,16 @@
 GODOT ?= godot
 RUSTC ?= rustc
 CC ?= cc
+IVERILOG ?= iverilog
+VVP ?= vvp
 CFLAGS := -std=c11 -O2 -Wall -Wextra -Werror -Wpedantic -msoft-float -mno-sse -mno-sse2
 
-.PHONY: play verify verify-godot verify-rust verify-qnx-c11 clean
+.PHONY: play verify verify-godot verify-rust verify-qnx-c11 verify-rtl clean
 
 play:
 	$(GODOT) --path .
 
-verify: verify-godot verify-rust verify-qnx-c11
+verify: verify-godot verify-rust verify-qnx-c11 verify-rtl
 
 verify-godot:
 	$(GODOT) --headless --path . -s tests/test_game_core_headless.gd
@@ -35,7 +37,19 @@ verify-qnx-c11:
 		echo "OBJDUMP_ZERO_FLOAT_SLUSE_OK"; \
 	fi
 	/tmp/flap_plopp_sluse_3d
-	rm -f /tmp/flap_plopp_qnx_gate /tmp/flap_plopp_sluse_3d
+	$(CC) $(CFLAGS) c11_qnx/lih_sluse_gate.c -o /tmp/flap_plopp_lih_sluse
+	@if objdump -d /tmp/flap_plopp_lih_sluse | grep -E '\b(addss|subss|mulss|divss|addsd|subsd|mulsd|divsd|ucomiss|ucomisd|cvtsi2ss|cvtsi2sd|fld|fstp|fadd|fmul)\b' >/dev/null; then \
+		echo "FLOAT_INSN_DETECTED_LIH"; exit 1; \
+	else \
+		echo "OBJDUMP_ZERO_FLOAT_LIH_OK"; \
+	fi
+	/tmp/flap_plopp_lih_sluse
+	rm -f /tmp/flap_plopp_qnx_gate /tmp/flap_plopp_sluse_3d /tmp/flap_plopp_lih_sluse
+
+verify-rtl:
+	$(IVERILOG) -g2012 -Wall -o /tmp/flap_plopp_lih_rtl.vvp rtl/lih_sluse_gate.sv rtl/tb_lih_sluse_gate.sv
+	$(VVP) /tmp/flap_plopp_lih_rtl.vvp
+	rm -f /tmp/flap_plopp_lih_rtl.vvp
 
 clean:
-	rm -f /tmp/flap_plopp_ky_engine_v1 /tmp/flap_plopp_millennium_v1 /tmp/flap_plopp_qnx_gate /tmp/flap_plopp_sluse_3d
+	rm -f /tmp/flap_plopp_ky_engine_v1 /tmp/flap_plopp_millennium_v1 /tmp/flap_plopp_qnx_gate /tmp/flap_plopp_sluse_3d /tmp/flap_plopp_lih_sluse /tmp/flap_plopp_lih_rtl.vvp
