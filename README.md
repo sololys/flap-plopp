@@ -7,7 +7,7 @@
 **Flap through the fjord sky! Plopp beneath the glowing waves! Relight the Northern Lighthouse! 🗼💛**
 
 [![Godot 4.3](https://img.shields.io/badge/GODOT%204.3-478CBF?style=for-the-badge&logo=godotengine&logoColor=white)](https://godotengine.org/)
-[![GitHub Game Off](https://img.shields.io/badge/GAME%20OFF-THEME%3A%20SHIFT-FF6B35?style=for-the-badge&logo=github&logoColor=white)](https://itch.io/jam/game-off-2024)
+[![GitHub Game Off 2026](https://img.shields.io/badge/GAME%20OFF%202026-THEME%3A%20SHIFT-FF6B35?style=for-the-badge&logo=github&logoColor=white)](https://itch.io/jam/game-off-2026)
 [![100% Procedural](https://img.shields.io/badge/ART%20%26%20AUDIO-100%25%20PROCEDURAL-FFB703?style=for-the-badge)](#)
 [![5-Stack Verified](https://img.shields.io/badge/5--STACK%20VERIFIED-37%2F37%20PASS-2EC4B6?style=for-the-badge)](#-under-the-hood-the-four-laws--5-stack-kernels)
 [![License: MIT](https://img.shields.io/badge/LICENSE-MIT-9B5DE5?style=for-the-badge)](LICENSE)
