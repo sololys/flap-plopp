@@ -274,6 +274,75 @@ static uint8_t fp_eval_doc185_canon(
     return FP_STATE_OPEN;
 }
 
+/* Doc 171 (SPEC-365) PiPNN & HashPrune: History-Independent Angular Cone Gating (0 float) */
+#define FP_PIPNN_C_MAX 1024u
+
+typedef struct {
+    uint32_t id;
+    int32_t  dx;
+    int32_t  dy;
+} fp_hp_cand_t;
+
+static inline uint8_t fp_hashprune_bucket(int32_t dx, int32_t dy) {
+    uint8_t b0 = (dx >= 0) ? 1u : 0u;
+    uint8_t b1 = (dy >= 0) ? 1u : 0u;
+    uint8_t b2 = (((int64_t)dx + (int64_t)dy) >= 0LL) ? 1u : 0u;
+    return (uint8_t)(b0 | (uint8_t)(b1 << 1u) | (uint8_t)(b2 << 2u));
+}
+
+static uint32_t fp_hashprune_admit(
+    const fp_hp_cand_t *cands,
+    uint32_t n,
+    uint32_t l_max,
+    uint32_t out_ids[8]
+) {
+    bool     used[8] = { false };
+    uint32_t bid[8]  = { 0u };
+    uint64_t bd2[8]  = { 0ULL };
+    uint32_t active  = 0u;
+
+    for (uint32_t i = 0u; i < n; ++i) {
+        int64_t dx = (int64_t)cands[i].dx;
+        int64_t dy = (int64_t)cands[i].dy;
+        uint64_t d2 = (uint64_t)(dx * dx + dy * dy);
+        uint8_t b = fp_hashprune_bucket(cands[i].dx, cands[i].dy);
+        if (!used[b]) {
+            used[b] = true;
+            bid[b]  = cands[i].id;
+            bd2[b]  = d2;
+            active++;
+        } else if (d2 < bd2[b] || (d2 == bd2[b] && cands[i].id < bid[b])) {
+            bid[b] = cands[i].id;
+            bd2[b] = d2;
+        }
+        while (active > l_max) {
+            uint8_t  worst_b  = 0u;
+            uint64_t worst_d2 = 0ULL;
+            uint32_t worst_id = 0u;
+            bool     found    = false;
+            for (uint8_t k = 0u; k < 8u; ++k) {
+                if (!used[k]) continue;
+                if (!found || bd2[k] > worst_d2 || (bd2[k] == worst_d2 && bid[k] > worst_id)) {
+                    found    = true;
+                    worst_b  = k;
+                    worst_d2 = bd2[k];
+                    worst_id = bid[k];
+                }
+            }
+            if (found) {
+                used[worst_b] = false;
+                active--;
+            } else {
+                break;
+            }
+        }
+    }
+    for (uint8_t k = 0u; k < 8u; ++k) {
+        out_ids[k] = used[k] ? bid[k] : 0u;
+    }
+    return active;
+}
+
 static bool fp_shift(fp_qnx_gate_t *g, uint64_t mono_ns) {
     if (g->state != FP_STATE_OPEN || mono_ns < g->last_mono_ns) {
         return false;
@@ -402,7 +471,21 @@ int main(void) {
     assert(fp_eval_doc185_canon(0ULL, 75ULL, 1000LL, 998LL, 20ULL, 50ULL, 5ULL) == FP_STATE_KILL);
     assert(fp_eval_doc185_canon(0ULL, 10ULL, 1000LL, 950LL, 20ULL, 50ULL, 5ULL) == FP_STATE_KILL);
 
-    printf("FLAP_PLOPP_QNX_C11_PASS log_entries=%u crash3_entries=%u doc183_dp=%u doc185_ok=1 involutions=%u chain_valid=1\n",
+    /* 10. Doc 171 (SPEC-365) PiPNN / HashPrune Theorem 3.1: HashPrune(pi(C)) == HashPrune(C) */
+    const fp_hp_cand_t hp_fwd[5]  = { {1u,10,10}, {2u,4,3}, {3u,-6,8}, {4u,-5,-5}, {5u,12,-2} };
+    const fp_hp_cand_t hp_rev[5]  = { {5u,12,-2}, {4u,-5,-5}, {3u,-6,8}, {2u,4,3}, {1u,10,10} };
+    const fp_hp_cand_t hp_perm[5] = { {4u,-5,-5}, {1u,10,10}, {5u,12,-2}, {3u,-6,8}, {2u,4,3} };
+    uint32_t rf[8], rr[8], rp[8];
+    assert(FP_PIPNN_C_MAX == 1024u);
+    assert(fp_hashprune_admit(hp_fwd, 5u, 3u, rf) == 3u);
+    assert(fp_hashprune_admit(hp_rev, 5u, 3u, rr) == 3u);
+    assert(fp_hashprune_admit(hp_perm, 5u, 3u, rp) == 3u);
+    for (uint8_t k = 0u; k < 8u; ++k) {
+        assert(rf[k] == rr[k] && rf[k] == rp[k]);
+    }
+    assert(rf[0] == 4u && rf[6] == 3u && rf[7] == 2u);
+
+    printf("FLAP_PLOPP_QNX_C11_PASS log_entries=%u crash3_entries=%u doc183_dp=%u doc185_ok=1 doc171_hp=1 involutions=%u chain_valid=1\n",
            g.log_len, cg.log_len + c3.log_len, pa - pb, g.involutions_completed);
     return 0;
 }

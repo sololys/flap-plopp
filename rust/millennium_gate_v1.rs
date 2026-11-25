@@ -209,6 +209,52 @@ impl MillenniumEngine {
         Verdict::Open
     }
 
+    /// Document 171 (SPEC-365) PiPNN / HashPrune: 3-hyperplane angular cone projection (0..7)
+    pub fn hashprune_bucket(dx: i64, dy: i64) -> usize {
+        let b0 = usize::from(dx >= 0);
+        let b1 = usize::from(dy >= 0);
+        let b2 = usize::from(dx + dy >= 0);
+        b0 | (b1 << 1) | (b2 << 2)
+    }
+
+    /// Theorem 3.1: History-independent online HashPrune gate (0 float, bounded reservoir l_max)
+    pub fn hashprune_admit(candidates: &[(u32, i64, i64)], l_max: usize) -> [Option<u32>; 8] {
+        let mut buckets: [Option<(u32, u64)>; 8] = [None; 8];
+        for &(id, dx, dy) in candidates {
+            let d2 = (dx as i128 * dx as i128 + dy as i128 * dy as i128) as u64;
+            let b = Self::hashprune_bucket(dx, dy);
+            let replace = match buckets[b] {
+                None => true,
+                Some((inc_id, inc_d2)) => d2 < inc_d2 || (d2 == inc_d2 && id < inc_id),
+            };
+            if replace {
+                buckets[b] = Some((id, d2));
+            }
+            while buckets.iter().filter(|x| x.is_some()).count() > l_max {
+                let mut worst: Option<(usize, u32, u64)> = None;
+                for (bi, slot) in buckets.iter().enumerate() {
+                    if let Some((eid, ed2)) = *slot {
+                        let is_worse = match worst {
+                            None => true,
+                            Some((_, wid, wd2)) => ed2 > wd2 || (ed2 == wd2 && eid > wid),
+                        };
+                        if is_worse {
+                            worst = Some((bi, eid, ed2));
+                        }
+                    }
+                }
+                if let Some((bi, _, _)) = worst {
+                    buckets[bi] = None;
+                }
+            }
+        }
+        let mut out = [None; 8];
+        for i in 0..8 {
+            out[i] = buckets[i].map(|(id, _)| id);
+        }
+        out
+    }
+
     pub fn apply_involution(s: Medium) -> Medium {
         match s {
             Medium::Sky => Medium::Sea,
@@ -349,6 +395,17 @@ fn main() {
     assert_eq!(c3.eval_doc185_canon(0, 35, 1000, 998, 20, 50, 5), Verdict::Hold);
     assert_eq!(c3.eval_doc185_canon(0, 75, 1000, 998, 20, 50, 5), Verdict::Kill);
     assert_eq!(c3.eval_doc185_canon(0, 10, 1000, 950, 20, 50, 5), Verdict::Kill);
+
+    // 8. Doc 171 (SPEC-365) PiPNN / HashPrune Theorem 3.1: HashPrune(pi(C)) == HashPrune(C)
+    let hp_fwd = [(1, 10, 10), (2, 4, 3), (3, -6, 8), (4, -5, -5), (5, 12, -2)];
+    let hp_rev = [(5, 12, -2), (4, -5, -5), (3, -6, 8), (2, 4, 3), (1, 10, 10)];
+    let hp_perm = [(4, -5, -5), (1, 10, 10), (5, 12, -2), (3, -6, 8), (2, 4, 3)];
+    let r_fwd = MillenniumEngine::hashprune_admit(&hp_fwd, 3);
+    assert_eq!(r_fwd, MillenniumEngine::hashprune_admit(&hp_rev, 3));
+    assert_eq!(r_fwd, MillenniumEngine::hashprune_admit(&hp_perm, 3));
+    assert_eq!(r_fwd[0], Some(4));
+    assert_eq!(r_fwd[6], Some(3));
+    assert_eq!(r_fwd[7], Some(2));
 
     println!(
         "MILLENNIUM_ENGINE_V1_PASS monoliths=7/7 involutions={} witnesses={} crash3_witnesses={} head_hash=0x{:016x}",

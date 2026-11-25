@@ -124,8 +124,26 @@ func _initialize() -> void:
 	core.start_run(true)
 	_assert(core.eval_doc185_canon(0, 10, 1000, 950, 20, 50, 5) == FlapPloppCore.Mode.KILL and core.kill_reason == "DOC185_MAXWELL_KILL", "34. Doc 185 Maxwell integrability breach -> KILL")
 
+	# Law 11 (Doc 171 SPEC-365 PiPNN / HashPrune): Bounded Leaf & History-Independent Gating
+	_assert(FlapPloppCore.PIPNN_C_MAX == 1024, "35. PiPNN cache-resident leaf bound C_max == 1024")
+	var hp_fwd := [
+		{"id": 1, "dx": 10, "dy": 10}, # cone 7, d2=200
+		{"id": 2, "dx": 4, "dy": 3},   # cone 7, d2=25 (overwrites id=1)
+		{"id": 3, "dx": -6, "dy": 8},  # cone 6, d2=100
+		{"id": 4, "dx": -5, "dy": -5}, # cone 0, d2=50
+		{"id": 5, "dx": 12, "dy": -2}, # cone 5, d2=148 (evicted when l_max=3)
+	]
+	var hp_rev := hp_fwd.duplicate()
+	hp_rev.reverse()
+	var hp_perm := [hp_fwd[3], hp_fwd[0], hp_fwd[4], hp_fwd[2], hp_fwd[1]]
+	var res_fwd := FlapPloppCore.hashprune_admit(hp_fwd, 3)
+	var res_rev := FlapPloppCore.hashprune_admit(hp_rev, 3)
+	var res_perm := FlapPloppCore.hashprune_admit(hp_perm, 3)
+	_assert(res_fwd.size() == 3 and res_fwd.has(2) and res_fwd.has(3) and res_fwd.has(4), "36. HashPrune closer-wins & l_max=3 eviction")
+	_assert(res_fwd == res_rev and res_fwd == res_perm, "37. Theorem 3.1 HashPrune(pi(C)) == HashPrune(C) permutation invariance")
+
 	# All 7 procedural WAVs
 	_assert(SoundSynth.make_flap().data.size() > 0 and SoundSynth.make_fanfare().data.size() > 0, "Procedural WAVs ok")
 
-	print("FLAP_PLOPP_FOUR_LAWS_PASS tests=34/34 involutions=%d poincare=%d witness_entries=%d" % [core.involutions_completed, core.poincare_returns, core.witness_log.size()])
+	print("FLAP_PLOPP_FOUR_LAWS_PASS tests=37/37 involutions=%d poincare=%d witness_entries=%d" % [core.involutions_completed, core.poincare_returns, core.witness_log.size()])
 	quit(0)

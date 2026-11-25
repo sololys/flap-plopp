@@ -230,6 +230,49 @@ func eval_doc185_canon(
 		return Mode.HOLD
 	return Mode.PLAYING
 
+# Document 171 (SPEC-365) PiPNN & HashPrune: History-Independent Angular Cone Gating (0 float)
+const PIPNN_C_MAX := 1024
+
+static func hashprune_bucket(dx: int, dy: int) -> int:
+	var b0 := 1 if dx >= 0 else 0
+	var b1 := 1 if dy >= 0 else 0
+	var b2 := 1 if (dx + dy) >= 0 else 0
+	return b0 | (b1 << 1) | (b2 << 2)
+
+# Theorem 3.1: HashPrune(pi(C)) == HashPrune(C) for any arrival permutation pi
+static func hashprune_admit(candidates: Array, l_max: int) -> Array[int]:
+	var buckets: Dictionary = {}
+	for c in candidates:
+		var cid: int = int(c["id"])
+		var dx: int = int(c["dx"])
+		var dy: int = int(c["dy"])
+		var d2: int = dx * dx + dy * dy
+		var b: int = hashprune_bucket(dx, dy)
+		if not buckets.has(b):
+			buckets[b] = {"id": cid, "d2": d2}
+		else:
+			var inc: Dictionary = buckets[b]
+			if d2 < int(inc["d2"]) or (d2 == int(inc["d2"]) and cid < int(inc["id"])):
+				buckets[b] = {"id": cid, "d2": d2}
+		while buckets.size() > l_max:
+			var worst_b: int = -1
+			var worst_d2: int = -1
+			var worst_id: int = -1
+			for bk in buckets.keys():
+				var e: Dictionary = buckets[bk]
+				var ed2: int = int(e["d2"])
+				var eid: int = int(e["id"])
+				if ed2 > worst_d2 or (ed2 == worst_d2 and eid > worst_id):
+					worst_b = int(bk)
+					worst_d2 = ed2
+					worst_id = eid
+			buckets.erase(worst_b)
+	var out: Array[int] = []
+	for bk in range(8):
+		if buckets.has(bk):
+			out.append(int(buckets[bk]["id"]))
+	return out
+
 func _append_witness(event_name: String, detail: String = "") -> void:
 	witness_log.append({
 		"seq": witness_log.size(),
