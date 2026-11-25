@@ -102,6 +102,39 @@ impl MillenniumEngine {
         Verdict::Open
     }
 
+    /// Document 181 (SPEC-385) Crash^3 Tri-System Collision Arbiter (0 float):
+    ///   S1 = Pi_K o Phi_H (eps_k_milli), S2 = Omega_E-TOR (pi >= 27/50), S3 = R_Witness (eps_w)
+    /// Enforces KILL > HOLD > OPEN with fail-closed witness sealing.
+    pub fn eval_crash3(
+        &mut self,
+        eps_k_milli: u32,
+        pi_num: u64,
+        pi_den: u64,
+        eps_w: bool,
+        r_dot_exceeded: bool,
+        g_violated: bool,
+        latched_kill: bool,
+    ) -> Verdict {
+        let involution_ok = Self::apply_iks_milli(Self::apply_iks_milli(250)) == 250;
+        if latched_kill
+            || eps_w
+            || !involution_ok
+            || g_violated
+            || self.load_c_milli >= self.limit_r_milli
+        {
+            self.seal(0xC8A5_0181, Verdict::Kill);
+            return Verdict::Kill;
+        }
+        let eps_e_ge_zero =
+            pi_den == 0 || pi_num.saturating_mul(50) >= pi_den.saturating_mul(27);
+        if eps_e_ge_zero || eps_k_milli > 0 || r_dot_exceeded {
+            self.seal(0xC8A5_0181, Verdict::Hold);
+            return Verdict::Hold;
+        }
+        self.seal(0xC8A5_0181, Verdict::Open);
+        Verdict::Open
+    }
+
     pub fn apply_involution(s: Medium) -> Medium {
         match s {
             Medium::Sky => Medium::Sea,
@@ -206,8 +239,17 @@ fn main() {
     assert_eq!(eng.deny_anti_reversible(true, true), Verdict::Kill);
     assert_eq!(eng.deny_anti_reversible(false, true), Verdict::Open);
 
+    // 5. Doc 181 (SPEC-385) Crash^3 Table 1 Verification Suite (Test A..D + Tri-System Clash)
+    let mut c3 = MillenniumEngine::new();
+    assert_eq!(c3.eval_crash3(0, 26, 50, false, false, false, false), Verdict::Open); // Test A
+    assert_eq!(c3.eval_crash3(12, 26, 50, false, false, false, false), Verdict::Hold); // Test B
+    assert_eq!(c3.eval_crash3(0, 27, 50, false, false, false, false), Verdict::Hold); // Test C
+    assert_eq!(c3.eval_crash3(0, 26, 50, true, false, false, false), Verdict::Kill); // Test D
+    assert_eq!(c3.eval_crash3(0, 30, 50, true, true, false, false), Verdict::Kill); // Crash^3
+    assert_eq!(c3.eval_crash3(0, 10, 50, false, false, false, true), Verdict::Kill); // Latch
+
     println!(
-        "MILLENNIUM_ENGINE_V1_PASS monoliths=7/7 involutions={} witnesses={} head_hash=0x{:016x}",
-        eng.involutions, eng.witness_count, eng.head_hash
+        "MILLENNIUM_ENGINE_V1_PASS monoliths=7/7 involutions={} witnesses={} crash3_witnesses={} head_hash=0x{:016x}",
+        eng.involutions, eng.witness_count, c3.witness_count, eng.head_hash
     );
 }

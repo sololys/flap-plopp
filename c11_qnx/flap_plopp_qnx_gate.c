@@ -168,6 +168,40 @@ static bool fp_deny_anti_reversible(
     return true;
 }
 
+/* Doc 181 (SPEC-385) Crash^3 Tri-System Collision Arbiter (0 float):
+ *   S1 = Pi_K o Phi_H (eps_k_milli), S2 = Omega_E-TOR (pi >= 27/50), S3 = R_Witness (eps_w)
+ * Enforces constitutional priority KILL > HOLD > OPEN with post-KILL latch immunity. */
+static uint8_t fp_eval_crash3(
+    fp_qnx_gate_t *g,
+    uint64_t mono_ns,
+    uint32_t eps_k_milli,
+    uint32_t pi_num,
+    uint32_t pi_den,
+    bool eps_w,
+    bool r_dot_exceeded,
+    bool g_violated
+) {
+    if (g->state == FP_STATE_KILL) {
+        return FP_STATE_KILL; /* Post-KILL crowbar latch immunity */
+    }
+    bool inv_ok = (fp_apply_T(fp_apply_T(g->medium)) == g->medium);
+    if (eps_w || !inv_ok || g_violated || g->load_c_milli >= FP_CAPACITY_R_MILLI) {
+        g->state = FP_STATE_KILL;
+        fp_append_log(g, mono_ns);
+        return FP_STATE_KILL;
+    }
+    bool eps_e_ge_zero = (pi_den == 0u)
+        || ((uint64_t)pi_num * (uint64_t)FP_TAU_DEN >= (uint64_t)FP_TAU_NUM * (uint64_t)pi_den);
+    if (eps_e_ge_zero || eps_k_milli > 0u || r_dot_exceeded) {
+        g->state = FP_STATE_HOLD;
+        fp_append_log(g, mono_ns);
+        return FP_STATE_HOLD;
+    }
+    g->state = FP_STATE_OPEN;
+    fp_append_log(g, mono_ns);
+    return FP_STATE_OPEN;
+}
+
 static bool fp_shift(fp_qnx_gate_t *g, uint64_t mono_ns) {
     if (g->state != FP_STATE_OPEN || mono_ns < g->last_mono_ns) {
         return false;
@@ -261,7 +295,25 @@ int main(void) {
     assert(g.state == FP_STATE_KILL);
     assert(fp_verify_chain(&g));
 
-    printf("FLAP_PLOPP_QNX_C11_PASS log_entries=%u involutions=%u chain_valid=1\n",
-           g.log_len, g.involutions_completed);
+    /* 7. Doc 181 (SPEC-385) Crash^3 Table 1 Verification Suite (KILL > HOLD > OPEN) */
+    fp_qnx_gate_t cg;
+    fp_init(&cg, 1000000ULL);
+    assert(fp_eval_crash3(&cg, 1001000ULL, 0u, 26u, 50u, false, false, false) == FP_STATE_OPEN);  /* Test A */
+    assert(fp_eval_crash3(&cg, 1002000ULL, 10u, 26u, 50u, false, false, false) == FP_STATE_HOLD); /* Test B */
+    assert(fp_eval_crash3(&cg, 1003000ULL, 0u, 27u, 50u, false, false, false) == FP_STATE_HOLD);  /* Test C */
+    assert(fp_eval_crash3(&cg, 1004000ULL, 0u, 26u, 50u, true, false, false) == FP_STATE_KILL);   /* Test D */
+    assert(cg.log[cg.log_len - 1u].v_out_allow == 0u);
+    assert(fp_eval_crash3(&cg, 1005000ULL, 0u, 10u, 50u, false, false, false) == FP_STATE_KILL);  /* Latch */
+    assert(fp_verify_chain(&cg));
+
+    fp_qnx_gate_t c3;
+    fp_init(&c3, 2000000ULL);
+    /* Crash^3 main clash: S1 PASS (eps_K=0), S2 HOLD (pi=30/50 >= 27/50), S3 KILL (eps_W=1), R_dot > dR */
+    assert(fp_eval_crash3(&c3, 2001000ULL, 0u, 30u, 50u, true, true, false) == FP_STATE_KILL);
+    assert(c3.log[c3.log_len - 1u].v_out_allow == 0u);
+    assert(fp_verify_chain(&c3));
+
+    printf("FLAP_PLOPP_QNX_C11_PASS log_entries=%u crash3_entries=%u involutions=%u chain_valid=1\n",
+           g.log_len, cg.log_len + c3.log_len, g.involutions_completed);
     return 0;
 }

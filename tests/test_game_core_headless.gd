@@ -87,8 +87,21 @@ func _initialize() -> void:
 	_assert(not core.attempt_reverse_committed(), "21a. Rev^2 rejects commit reversal after D2")
 	_assert(core.mode == FlapPloppCore.Mode.KILL and core.kill_reason == "ANTI_REVERSIBLE_VIOLATION", "21b. ANTI_REVERSIBLE_VIOLATION triggers 0.00 V KILL")
 
+	# Law 8 (Doc 181 SPEC-385 Crash^3): Tri-System Collision S1 x S2 x S3 (KILL > HOLD > OPEN)
+	core.start_run(true)
+	_assert(core.eval_crash3(0, 26, 50, false, false, false) == FlapPloppCore.Mode.PLAYING, "22. Crash3 Test A (Normal -> OPEN)")
+	core.start_run(true)
+	_assert(core.eval_crash3(15, 26, 50, false, false, false) == FlapPloppCore.Mode.HOLD, "23. Crash3 Test B (Projection residual eps_K > 0 -> HOLD)")
+	core.start_run(true)
+	_assert(core.eval_crash3(0, 27, 50, false, false, false) == FlapPloppCore.Mode.HOLD, "24. Crash3 Test C (E-TOR pi >= 27/50 -> HOLD)")
+	core.start_run(true)
+	_assert(core.eval_crash3(0, 26, 50, true, false, false) == FlapPloppCore.Mode.KILL, "25. Crash3 Test D (Witness breach eps_W = 1 -> KILL)")
+	core.start_run(true)
+	_assert(core.eval_crash3(0, 30, 50, true, true, false) == FlapPloppCore.Mode.KILL and core.kill_reason == "CRASH3_WITNESS_KILL", "26a. Crash3 Tri-System Clash (S1 PASS, S2 HOLD, S3 KILL -> KILL)")
+	_assert(core.eval_crash3(0, 10, 50, false, false, false) == FlapPloppCore.Mode.KILL, "26b. Crash3 post-KILL latch immunity")
+
 	# All 7 procedural WAVs
 	_assert(SoundSynth.make_flap().data.size() > 0 and SoundSynth.make_fanfare().data.size() > 0, "Procedural WAVs ok")
 
-	print("FLAP_PLOPP_FOUR_LAWS_PASS tests=21/21 involutions=%d poincare=%d witness_entries=%d" % [core.involutions_completed, core.poincare_returns, core.witness_log.size()])
+	print("FLAP_PLOPP_FOUR_LAWS_PASS tests=26/26 involutions=%d poincare=%d witness_entries=%d" % [core.involutions_completed, core.poincare_returns, core.witness_log.size()])
 	quit(0)

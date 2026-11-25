@@ -135,6 +135,35 @@ func attempt_reverse_committed() -> bool:
 		return false
 	return true
 
+# Document 181 (SPEC-385) Crash^3 Tri-System Collision Arbiter:
+#   S1 = Pi_K o Phi_H (projection residual eps_k_milli)
+#   S2 = Omega_E-TOR  (exact rational uncertainty pi_num/pi_den >= 27/50)
+#   S3 = R_Witness    (cryptographic chain continuity breach eps_w)
+# Enforces constitutional priority KILL > HOLD > OPEN with post-KILL latch immunity.
+func eval_crash3(
+	eps_k_milli: int,
+	pi_num: int,
+	pi_den: int,
+	eps_w: bool,
+	r_dot_exceeded: bool = false,
+	g_violated: bool = false
+) -> int:
+	if mode == Mode.KILL:
+		return Mode.KILL
+	var involution_ok := (apply_involution_T(apply_involution_T(medium)) == medium)
+	if eps_w or not involution_ok or g_violated or not is_within_capacity():
+		var reason := "CRASH3_WITNESS_KILL" if eps_w else ("OVERLOAD_C_GE_R" if not is_within_capacity() else "CRASH3_BOUNDARY_KILL")
+		_trigger_kill(reason)
+		return Mode.KILL
+	var eps_e_ge_zero := (pi_den <= 0) or (pi_num * 50 >= pi_den * 27)
+	if eps_e_ge_zero or eps_k_milli > 0 or r_dot_exceeded:
+		if mode == Mode.PLAYING:
+			action_hold()
+		else:
+			mode = Mode.HOLD
+		return Mode.HOLD
+	return Mode.PLAYING
+
 func _append_witness(event_name: String, detail: String = "") -> void:
 	witness_log.append({
 		"seq": witness_log.size(),
