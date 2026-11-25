@@ -81,8 +81,14 @@ func _initialize() -> void:
 	core.cycle_tick = 10
 	_assert(core.eval_triadic_horizon(false) == FlapPloppCore.Mode.KILL, "20. Design Invalidity (U_safe == empty) forces KILL")
 
+	# Law 7 (Doc 178 Rev^2): Asserting reversibility after D2 PONR -> ANTI_REVERSIBLE_VIOLATION KILL
+	core.start_run(true)
+	core.d2_committed = true
+	_assert(not core.attempt_reverse_committed(), "21a. Rev^2 rejects commit reversal after D2")
+	_assert(core.mode == FlapPloppCore.Mode.KILL and core.kill_reason == "ANTI_REVERSIBLE_VIOLATION", "21b. ANTI_REVERSIBLE_VIOLATION triggers 0.00 V KILL")
+
 	# All 7 procedural WAVs
 	_assert(SoundSynth.make_flap().data.size() > 0 and SoundSynth.make_fanfare().data.size() > 0, "Procedural WAVs ok")
 
-	print("FLAP_PLOPP_FOUR_LAWS_PASS tests=20/20 involutions=%d poincare=%d witness_entries=%d" % [core.involutions_completed, core.poincare_returns, core.witness_log.size()])
+	print("FLAP_PLOPP_FOUR_LAWS_PASS tests=21/21 involutions=%d poincare=%d witness_entries=%d" % [core.involutions_completed, core.poincare_returns, core.witness_log.size()])
 	quit(0)

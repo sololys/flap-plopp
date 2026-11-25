@@ -61,6 +61,7 @@ var poincare_returns: int = 0       # Completed T(T(s))=s returning within epsil
 var pi_k_projected: bool = false    # Enforces [R, Pi_K] != 0: Pi_K must precede realization R
 var cycle_tick: int = 0             # Monotonic integer cycle coordinate
 var horizon_tick: int = 3600        # Epistemic horizon t* in discrete ticks (renewed on SHIFT/pickup)
+var d2_committed: bool = false      # Rev^2 PONR: once in D2, Dom(F) intersect D2 == empty
 var hold_entries: int = 0
 var kill_count: int = 0
 var witness_log: Array[Dictionary] = [] # Append-only log (never erased on retry)
@@ -126,6 +127,13 @@ func eval_triadic_horizon(u_safe_nonempty: bool = true) -> int:
 		action_hold()
 		return Mode.HOLD
 	return Mode.PLAYING
+
+# Document 178 Rev^2: Dom(F) intersect D2 == empty; asserting F(F(x))=x after D2 -> ANTI_REVERSIBLE_VIOLATION
+func attempt_reverse_committed() -> bool:
+	if d2_committed:
+		_trigger_kill("ANTI_REVERSIBLE_VIOLATION")
+		return false
+	return true
 
 func _append_witness(event_name: String, detail: String = "") -> void:
 	witness_log.append({

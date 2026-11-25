@@ -92,6 +92,16 @@ impl MillenniumEngine {
         Verdict::Open
     }
 
+    /// Document 178 Rev^2: Dom(F) intersect D2 == empty.
+    /// Asserting F(F(x)) = x on a D2-committed state triggers ANTI_REVERSIBLE_VIOLATION (KILL).
+    pub fn deny_anti_reversible(&mut self, committed_in_d2: bool, asserts_involution: bool) -> Verdict {
+        if committed_in_d2 && asserts_involution {
+            self.seal(0xA171_0178, Verdict::Kill);
+            return Verdict::Kill;
+        }
+        Verdict::Open
+    }
+
     pub fn apply_involution(s: Medium) -> Medium {
         match s {
             Medium::Sky => Medium::Sea,
@@ -193,6 +203,8 @@ fn main() {
     assert_eq!(eng.load_c_milli, eng.limit_r_milli);
     assert_eq!(eng.indicator_product(true, true), 0);
     assert_eq!(MillenniumEngine::cdc_admissible_actions(true, false), 0);
+    assert_eq!(eng.deny_anti_reversible(true, true), Verdict::Kill);
+    assert_eq!(eng.deny_anti_reversible(false, true), Verdict::Open);
 
     println!(
         "MILLENNIUM_ENGINE_V1_PASS monoliths=7/7 involutions={} witnesses={} head_hash=0x{:016x}",

@@ -153,6 +153,21 @@ static uint8_t fp_eval_triadic(
     return FP_STATE_OPEN;
 }
 
+/* Doc 178 Rev^2: Dom(F) intersect D2 == empty -> ANTI_REVERSIBLE_VIOLATION triggers 0.00 V KILL */
+static bool fp_deny_anti_reversible(
+    fp_qnx_gate_t *g,
+    uint64_t mono_ns,
+    bool committed_in_d2,
+    bool asserts_involution
+) {
+    if (committed_in_d2 && asserts_involution) {
+        g->state = FP_STATE_KILL;
+        fp_append_log(g, mono_ns);
+        return false;
+    }
+    return true;
+}
+
 static bool fp_shift(fp_qnx_gate_t *g, uint64_t mono_ns) {
     if (g->state != FP_STATE_OPEN || mono_ns < g->last_mono_ns) {
         return false;
@@ -239,6 +254,11 @@ int main(void) {
     assert(g.state == FP_STATE_KILL);
     assert(fp_indicator_product(&g, fp_verify_chain(&g), true) == 0u);
     assert(g.log[g.log_len - 1u].v_out_allow == 0u);
+
+    /* 6. Doc 178 Rev^2: asserting reversibility after D2 PONR -> ANTI_REVERSIBLE_VIOLATION KILL */
+    assert(fp_deny_anti_reversible(&g, 5000075000ULL, false, true));
+    assert(!fp_deny_anti_reversible(&g, 5000087500ULL, true, true));
+    assert(g.state == FP_STATE_KILL);
     assert(fp_verify_chain(&g));
 
     printf("FLAP_PLOPP_QNX_C11_PASS log_entries=%u involutions=%u chain_valid=1\n",
