@@ -248,6 +248,32 @@ static uint8_t fp_eval_doc183_admissibility(
     return FP_STATE_OPEN;
 }
 
+/* Doc 185 (KY Canon): Prime Mark (Delta_K), Poincare Return Surface (Delta_Sigma),
+ * and Maxwell Integrability Gate (|dP/dT - dS/dV| <= eps_integrable) — 0 float. */
+static uint8_t fp_eval_doc185_canon(
+    uint64_t delta_k,
+    uint64_t delta_sigma,
+    int64_t dp_dt_milli,
+    int64_t ds_dv_milli,
+    uint64_t eps_admissible,
+    uint64_t eps_critical,
+    uint64_t eps_integrable
+) {
+    uint64_t delta_maxwell = (dp_dt_milli >= ds_dv_milli)
+        ? (uint64_t)(dp_dt_milli - ds_dv_milli)
+        : (uint64_t)(ds_dv_milli - dp_dt_milli);
+    if (eps_critical < eps_admissible
+        || delta_maxwell > eps_integrable
+        || delta_k > eps_critical
+        || delta_sigma > eps_critical) {
+        return FP_STATE_KILL;
+    }
+    if (delta_k > eps_admissible || delta_sigma > eps_admissible) {
+        return FP_STATE_HOLD;
+    }
+    return FP_STATE_OPEN;
+}
+
 static bool fp_shift(fp_qnx_gate_t *g, uint64_t mono_ns) {
     if (g->state != FP_STATE_OPEN || mono_ns < g->last_mono_ns) {
         return false;
@@ -370,7 +396,13 @@ int main(void) {
     assert(fp_eval_doc183_admissibility(600u, 300u, 60ULL, 50ULL, 1u, 3ULL, 4ULL, 6ULL, 2ULL) == FP_STATE_KILL);
     assert(fp_eval_doc183_admissibility(600u, 300u, 40ULL, 50ULL, 16u, 3ULL, 4ULL, 6ULL, 2ULL) == FP_STATE_KILL);
 
-    printf("FLAP_PLOPP_QNX_C11_PASS log_entries=%u crash3_entries=%u doc183_dp=%u involutions=%u chain_valid=1\n",
+    /* 9. Doc 185 (KY Canon): Prime Mark, Poincare Return Surface & Maxwell Integrability Gate */
+    assert(fp_eval_doc185_canon(0ULL, 12ULL, 1000LL, 998LL, 20ULL, 50ULL, 5ULL) == FP_STATE_OPEN);
+    assert(fp_eval_doc185_canon(0ULL, 35ULL, 1000LL, 998LL, 20ULL, 50ULL, 5ULL) == FP_STATE_HOLD);
+    assert(fp_eval_doc185_canon(0ULL, 75ULL, 1000LL, 998LL, 20ULL, 50ULL, 5ULL) == FP_STATE_KILL);
+    assert(fp_eval_doc185_canon(0ULL, 10ULL, 1000LL, 950LL, 20ULL, 50ULL, 5ULL) == FP_STATE_KILL);
+
+    printf("FLAP_PLOPP_QNX_C11_PASS log_entries=%u crash3_entries=%u doc183_dp=%u doc185_ok=1 involutions=%u chain_valid=1\n",
            g.log_len, cg.log_len + c3.log_len, pa - pb, g.involutions_completed);
     return 0;
 }

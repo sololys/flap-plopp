@@ -179,6 +179,36 @@ impl MillenniumEngine {
         Verdict::Open
     }
 
+    /// Document 185 (KY Canon): Prime Mark (Delta_K), Poincare Return Surface (Delta_Sigma),
+    /// and Maxwell Integrability Gate (|dP/dT - dS/dV| <= eps_integrable) — 0 float.
+    #[allow(clippy::too_many_arguments)]
+    pub fn eval_doc185_canon(
+        &mut self,
+        delta_k: u64,
+        delta_sigma: u64,
+        dp_dt_milli: i64,
+        ds_dv_milli: i64,
+        eps_admissible: u64,
+        eps_critical: u64,
+        eps_integrable: u64,
+    ) -> Verdict {
+        let delta_maxwell = dp_dt_milli.abs_diff(ds_dv_milli);
+        if eps_critical < eps_admissible
+            || delta_maxwell > eps_integrable
+            || delta_k > eps_critical
+            || delta_sigma > eps_critical
+        {
+            self.seal(0x0185_CA10, Verdict::Kill);
+            return Verdict::Kill;
+        }
+        if delta_k > eps_admissible || delta_sigma > eps_admissible {
+            self.seal(0x0185_CA10, Verdict::Hold);
+            return Verdict::Hold;
+        }
+        self.seal(0x0185_CA10, Verdict::Open);
+        Verdict::Open
+    }
+
     pub fn apply_involution(s: Medium) -> Medium {
         match s {
             Medium::Sky => Medium::Sea,
@@ -313,6 +343,12 @@ fn main() {
         c3.eval_doc183_admissibility(600, 300, 40, 50, 16, 3, 4, 6, 2),
         Verdict::Kill
     );
+
+    // 7. Doc 185 (KY Canon): Prime Mark, Poincare Return Surface & Maxwell Integrability Gate
+    assert_eq!(c3.eval_doc185_canon(0, 12, 1000, 998, 20, 50, 5), Verdict::Open);
+    assert_eq!(c3.eval_doc185_canon(0, 35, 1000, 998, 20, 50, 5), Verdict::Hold);
+    assert_eq!(c3.eval_doc185_canon(0, 75, 1000, 998, 20, 50, 5), Verdict::Kill);
+    assert_eq!(c3.eval_doc185_canon(0, 10, 1000, 950, 20, 50, 5), Verdict::Kill);
 
     println!(
         "MILLENNIUM_ENGINE_V1_PASS monoliths=7/7 involutions={} witnesses={} crash3_witnesses={} head_hash=0x{:016x}",

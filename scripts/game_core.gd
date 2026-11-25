@@ -201,6 +201,35 @@ func eval_doc183_admissibility(
 		return Mode.HOLD
 	return Mode.PLAYING
 
+# Document 185 (KY Canon): Prime Mark (Delta_K), Poincare Return Surface (Delta_Sigma),
+# and Maxwell Integrability Gate (|dP/dT - dS/dV| <= eps_integrable) — 0 float.
+func eval_doc185_canon(
+	delta_k: int,
+	delta_sigma: int,
+	dp_dt_milli: int,
+	ds_dv_milli: int,
+	eps_admissible: int,
+	eps_critical: int,
+	eps_integrable: int
+) -> int:
+	if eps_admissible < 0 or eps_critical < eps_admissible or eps_integrable < 0:
+		_trigger_kill("DOC185_INVALID_THRESHOLDS")
+		return Mode.KILL
+	var delta_maxwell: int = absi(dp_dt_milli - ds_dv_milli)
+	if delta_maxwell > eps_integrable:
+		_trigger_kill("DOC185_MAXWELL_KILL")
+		return Mode.KILL
+	if delta_k > eps_critical or delta_sigma > eps_critical:
+		_trigger_kill("DOC185_POINCARE_KILL" if delta_sigma > eps_critical else "DOC185_PRIME_MARK_KILL")
+		return Mode.KILL
+	if delta_k > eps_admissible or delta_sigma > eps_admissible:
+		if mode == Mode.PLAYING:
+			action_hold()
+		else:
+			mode = Mode.HOLD
+		return Mode.HOLD
+	return Mode.PLAYING
+
 func _append_witness(event_name: String, detail: String = "") -> void:
 	witness_log.append({
 		"seq": witness_log.size(),

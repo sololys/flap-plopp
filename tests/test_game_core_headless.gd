@@ -114,8 +114,18 @@ func _initialize() -> void:
 	core.start_run(true)
 	_assert(core.eval_doc183_admissibility(600, 300, 40, 50, 16, 3, 4, 6, 2) == FlapPloppCore.Mode.KILL, "30b. Doc 183 ECC cofactor h > 8 (Pohlig-Hellman risk) -> KILL")
 
+	# Law 10 (Doc 185 KY Canon): Prime Mark, Poincare Return Surface & Maxwell Integrability Gate
+	core.start_run(true)
+	_assert(core.eval_doc185_canon(0, 12, 1000, 998, 20, 50, 5) == FlapPloppCore.Mode.PLAYING, "31. Doc 185 Closed Ring + Coherent Poincare + Maxwell Integrable -> OPEN")
+	core.start_run(true)
+	_assert(core.eval_doc185_canon(0, 35, 1000, 998, 20, 50, 5) == FlapPloppCore.Mode.HOLD, "32. Doc 185 Poincare representation drift (eps_adm < dSigma <= eps_crit) -> HOLD")
+	core.start_run(true)
+	_assert(core.eval_doc185_canon(0, 75, 1000, 998, 20, 50, 5) == FlapPloppCore.Mode.KILL and core.kill_reason == "DOC185_POINCARE_KILL", "33. Doc 185 Poincare coherence collapse -> KILL")
+	core.start_run(true)
+	_assert(core.eval_doc185_canon(0, 10, 1000, 950, 20, 50, 5) == FlapPloppCore.Mode.KILL and core.kill_reason == "DOC185_MAXWELL_KILL", "34. Doc 185 Maxwell integrability breach -> KILL")
+
 	# All 7 procedural WAVs
 	_assert(SoundSynth.make_flap().data.size() > 0 and SoundSynth.make_fanfare().data.size() > 0, "Procedural WAVs ok")
 
-	print("FLAP_PLOPP_FOUR_LAWS_PASS tests=30/30 involutions=%d poincare=%d witness_entries=%d" % [core.involutions_completed, core.poincare_returns, core.witness_log.size()])
+	print("FLAP_PLOPP_FOUR_LAWS_PASS tests=34/34 involutions=%d poincare=%d witness_entries=%d" % [core.involutions_completed, core.poincare_returns, core.witness_log.size()])
 	quit(0)
